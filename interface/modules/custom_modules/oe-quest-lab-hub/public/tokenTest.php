@@ -38,6 +38,7 @@ $token = new QuestToken();
 
         } else {
             echo "The configuration is incomplete. Check your username and password are in the system.";
+            print_r($accessToken);
         }
 
     ?>
