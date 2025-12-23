@@ -1,24 +1,25 @@
 <?php
+global $webserver_root;
 
 /**
-* Functions to support HL7 order generation.
-*
-* Copyright (C) 2012-2013 Rod Roark <rod@sunsetsystems.com>
-*
-* LICENSE: This program is free software; you can redistribute it and/or
-* modify it under the terms of the GNU General Public License
-* as published by the Free Software Foundation; either version 2
-* of the License, or (at your option) any later version.
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-* GNU General Public License for more details.
-* You should have received a copy of the GNU General Public License
-* along with this program.  If not, see <http://opensource.org/licenses/gpl-license.php>.
-*
-* @package   OpenEMR
-* @author    Rod Roark <rod@sunsetsystems.com>
-*/
+ * Functions to support HL7 order generation.
+ *
+ * Copyright (C) 2012-2013 Rod Roark <rod@sunsetsystems.com>
+ *
+ * LICENSE: This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://opensource.org/licenses/gpl-license.php>.
+ *
+ * @package   OpenEMR
+ * @author    Rod Roark <rod@sunsetsystems.com>
+ */
 
 /*
 * A bit of documentation that will need to go into the manual:
@@ -41,7 +42,7 @@ use OpenEMR\Common\Logging\EventAuditLogger;
 
 function hl7Text($s)
 {
-  // See http://www.interfaceware.com/hl7_escape_protocol.html:
+    // See http://www.interfaceware.com/hl7_escape_protocol.html:
     $s = str_replace('\\', '\\E\\', $s);
     $s = str_replace('^', '\\S\\', $s);
     $s = str_replace('|', '\\F\\', $s);
@@ -82,13 +83,13 @@ function hl7Sex($s)
 
 function hl7Phone($s)
 {
-    if (preg_match("/([2-9]\d\d)\D*(\d\d\d)\D*(\d\d\d\d)\D*$/", $s, $tmp)) {
-        return '(' . $tmp[1] . ')' . $tmp[2] . '-' . $tmp[3];
+    /*if (preg_match("/([2-9]\d\d)\D*(\d\d\d)\D*(\d\d\d\d)\D*$/", $s, $tmp)) {
+        return $s; //'(' . $tmp[1] . ')' . $tmp[2] . '-' . $tmp[3];
     }
 
     if (preg_match("/(\d\d\d)\D*(\d\d\d\d)\D*$/", $s, $tmp)) {
         return $tmp[1] . '-' . $tmp[2];
-    }
+    }*/
 
     return '';
 }
@@ -120,7 +121,7 @@ function hl7Relation($s)
         return 8;
     }
 
-  // Should not get here so this will probably get noticed if we do.
+    // Should not get here so this will probably get noticed if we do.
     return $s;
 }
 
@@ -128,8 +129,8 @@ function hl7Relation($s)
  * Get array of insurance payers for the specified patient as of the specified
  * date. If no date is passed then the current date is used.
  *
- * @param  integer $pid             Patient ID.
- * @param  date    $encounter_date  YYYY-MM-DD date.
+ * @param integer $pid Patient ID.
+ * @param date $encounter_date YYYY-MM-DD date.
  * @return array   Array containing an array of data for each payer.
  */
 function loadPayerInfo($pid, $date = '')
@@ -154,9 +155,9 @@ function loadPayerInfo($pid, $date = '')
 
         $orow = new InsuranceCompany($drow['provider']);
         $payers[$key] = array();
-        $payers[$key]['data']    = $drow;
+        $payers[$key]['data'] = $drow;
         $payers[$key]['company'] = $crow;
-        $payers[$key]['object']  = $orow;
+        $payers[$key]['object'] = $orow;
     }
 
     return $payers;
@@ -165,15 +166,15 @@ function loadPayerInfo($pid, $date = '')
 /**
  * Generate HL7 for the specified procedure order.
  *
- * @param  integer $orderid  Procedure order ID.
- * @param  string  &$out     Container for target HL7 text.
+ * @param integer $orderid Procedure order ID.
+ * @param string  &$out Container for target HL7 text.
  * @return string            Error text, or empty if no errors.
  */
 function gen_hl7_order($orderid, &$out)
 {
     $labSample = '';
     $labNote = '';
-  // Delimiters
+    // Delimiters
     $d0 = "\r";
     $d1 = '|';
     $d2 = '^';
@@ -213,53 +214,56 @@ function gen_hl7_order($orderid, &$out)
         "ORDER BY pc.procedure_order_seq",
         array($orderid)
     );
-
+    $psc = '';
+    if ($porow['order_psc'] == '1') {
+        $psc = 'PSC';
+    }
     $padOrderId = trim($porow['send_fac_id']) . "-" . trim(str_pad((string)$orderid, 4, "0", STR_PAD_LEFT));
-  // Message Header
+    // Message Header
     $out .= "MSH" .
-    $d1 . "$d2~\\&" .               // Encoding Characters (delimiters)
-    $d1 . $porow['send_app_id'] .   // Sending Application ID
-    $d1 . $porow['send_fac_id'] .   // Sending Facility ID
-    $d1 . $porow['recv_app_id'] .   // Receiving Application ID
-    $d1 . $porow['recv_fac_id'] .   // Receiving Facility ID
-    $d1 . date('YmdHis', $today) .  // Date and time of this message
-    $d1 .
-    $d1 . 'ORM' . $d2 . 'O01' .     // Message Type
-    $d1 . $padOrderId .  // Unique Message Number
-    $d1 . $porow['DorP'] .          // D=Debugging, P=Production
-    $d1 . '2.3' .                   // HL7 Version ID
-    $d0;
+        $d1 . "$d2~\\&" .               // Encoding Characters (delimiters)
+        $d1 . $porow['send_app_id'] .   // Sending Application ID
+        $d1 . $porow['send_fac_id'] .   // Sending Facility ID
+        $d1 . $psc .   // Receiving Application ID
+        $d1 . $porow['recv_fac_id'] .   // Receiving Facility ID
+        $d1 . date('YmdHis', $today) .  // Date and time of this message
+        $d1 .
+        $d1 . 'ORM' . $d2 . 'O01' .     // Message Type
+        $d1 . $padOrderId .  // Unique Message Number
+        $d1 . $porow['DorP'] .          // D=Debugging, P=Production
+        $d1 . '2.3' .                   // HL7 Version ID
+        $d0;
 
-  // Patient Identification
+    // Patient Identification
     $out .= "PID" .
-    $d1 . "1" .                      // Set ID (always just 1 of these)
-    $d1 . $porow['pid'] .            // Patient ID (not required)
-    $d1 . $porow['pid'] .            // Patient ID (required)
-    $d1 .                            // Alternate Patient ID (not required)
-    $d1 . hl7Text($porow['lname']) .
-    $d2 . hl7Text($porow['fname']);
+        $d1 . "1" .                      // Set ID (always just 1 of these)
+        $d1 . $porow['pid'] .            // Patient ID (not required)
+        $d1 . $porow['pid'] .            // Patient ID (required)
+        $d1 .                            // Alternate Patient ID (not required)
+        $d1 . hl7Text($porow['lname']) .
+        $d2 . hl7Text($porow['fname']);
     if ($porow['mname']) {
         $out .= $d2 . hl7Text($porow['mname']);
     }
 
     $out .=
-    $d1 .
-    $d1 . hl7Date($porow['DOB']) .   // DOB
-    $d1 . hl7Sex($porow['sex'])  .   // Sex: M, F or U
-    $d1 . $d1 .
-    $d1 . hl7Text($porow['street']) .
-    $d2 .
-    $d2 . hl7Text($porow['city']) .
-    $d2 . hl7Text($porow['state']) .
-    $d2 . hl7Zip($porow['postal_code']) .
-    $d1 .
-    $d1 . hl7Phone($porow['phone_home']) .
-    $d1 . hl7Phone($porow['phone_biz']) .
-    $d1 . $d1 . $d1 .
-    $d1 . $porow['encounter'] .
-    $d1 . hl7SSN($porow['ss']) .
-    $d1 . $d1 . $d1 .
-    $d0;
+        $d1 .
+        $d1 . hl7Date($porow['DOB']) .   // DOB
+        $d1 . hl7Sex($porow['sex']) .   // Sex: M, F or U
+        $d1 . $d1 .
+        $d1 . hl7Text($porow['street']) .
+        $d2 .
+        $d2 . hl7Text($porow['city']) .
+        $d2 . hl7Text($porow['state']) .
+        $d2 . hl7Zip($porow['postal_code']) .
+        $d1 .
+        $d1 . hl7Phone($porow['phone_home']) .
+        $d1 . hl7Phone($porow['phone_biz']) .
+        $d1 . $d1 . $d1 .
+        $d1 . $porow['encounter'] .
+        $d1 . hl7SSN($porow['ss']) .
+        $d1 . $d1 . $d1 .
+        $d0;
 
     // NTE segment(s).
     $msql = sqlStatement("SELECT drug FROM prescriptions WHERE active=1 AND patient_id=?", [$porow['pid']]);
@@ -275,21 +279,21 @@ function gen_hl7_order($orderid, &$out)
         $d1 . "medications " . $med_list .
         $d0;
 
-  // Patient Visit.
+    // Patient Visit.
     $out .= "PV1" .
-    $d1 . "1" .                           // Set ID (always just 1 of these)
-    $d1 .                                 // Patient Class (if required, O for Outpatient)
-    $d1 .                                 // Patient Location (for inpatient only?)
-    $d1 . $d1 . $d1 .
-    $d1 . hl7Text($porow['docnpi']) .     // Attending Doctor ID
-    $d2 . hl7Text($porow['doclname']) . // Last Name
-    $d2 . hl7Text($porow['docfname']) . // First Name
-    str_repeat($d1, 11) .                 // PV1 8 to 18 all empty
-    $d1 . $porow['encounter'] .           // Encounter Number
-    str_repeat($d1, 13) .                 // PV1 20 to 32 all empty
-    $d0;
+        $d1 . "1" .                           // Set ID (always just 1 of these)
+        $d1 .                                 // Patient Class (if required, O for Outpatient)
+        $d1 .                                 // Patient Location (for inpatient only?)
+        $d1 . $d1 . $d1 .
+        $d1 . hl7Text($porow['docnpi']) .     // Attending Doctor ID
+        $d2 . hl7Text($porow['doclname']) . // Last Name
+        $d2 . hl7Text($porow['docfname']) . '^^^^^^NPI' . // First Name
+        str_repeat($d1, 11) .                 // PV1 8 to 18 all empty
+        $d1 . $porow['encounter'] .           // Encounter Number
+        str_repeat($d1, 13) .                 // PV1 20 to 32 all empty
+        $d0;
 
-  // Insurance stuff.
+    // Insurance stuff.
     $ins_type = trim($porow['billing_type']);
     $payers = loadPayerInfo($porow['pid'], $porow['date_ordered']);
     $setid = 0;
@@ -369,41 +373,43 @@ function gen_hl7_order($orderid, &$out)
             $d1 . hl7SSN($porow['ss']) .
             $d0;
     }
-  // Common Order.
-    $out .= "ORC" .
-    $d1 . "NW" .                     // New Order
-    $d1 . $padOrderId . // Placer Order Number
-    str_repeat($d1, 6) .             // ORC 3-8 not used
-    $d1 . date('YmdHis') .           // Transaction date/time
-    $d1 . $d1 .
-    $d1 . hl7Text($porow['docnpi']) .     // Ordering Provider
-      $d2 . hl7Text($porow['doclname']) . // Last Name
-      $d2 . hl7Text($porow['docfname']) . // First Name
-    str_repeat($d1, 7) .             // ORC 13-19 not used
-    $d1 . "2" .                      // ABN Status: 2 = Notified & Signed, 4 = Unsigned
-    $d0;
+
 
     $setid = 0;
     while ($pcrow = sqlFetchArray($pcres)) {
+        // Common Order. //Quest needs this inside the loop
+        $out .= "ORC" .
+            $d1 . "NW" .                     // New Order
+            $d1 . $padOrderId . // Placer Order Number
+            str_repeat($d1, 6) .             // ORC 3-8 not used
+            $d1 . date('YmdHis') .           // Transaction date/time
+            $d1 . $d1 .
+            $d1 . hl7Text($porow['docnpi']) .     // Ordering Provider
+            $d2 . hl7Text($porow['doclname']) . // Last Name
+            $d2 . hl7Text($porow['docfname']) . '^^^^^^NPI' . // First Name
+            str_repeat($d1, 7) .             // ORC 13-19 not used
+            $d1 . "2" .                      // ABN Status: 2 = Notified & Signed, 4 = Unsigned
+            $d0;
+
         // Observation Request.
         $out .= "OBR" .
-        $d1 . ++$setid . // Set ID
-        $d1 . $padOrderId . // Placer Order Number
-        $d1 .
-        $d1 . '^^^' . hl7Text($pcrow['procedure_code']) .
-        $d2 . hl7Text($pcrow['procedure_name']) .
-        $d1 . hl7Priority($porow['order_priority']) . // S=Stat, R=Routine
-        $d1 .
-        $d1 . hl7Time($porow['date_collected']) .     // Observation Date/Time
-        str_repeat($d1, 8) .                  // OBR 8-15 not used
-        $d1 . hl7Text($porow['docnpi']) .             // Physician ID
-        $d2 . hl7Text($porow['doclname']) .         // Last Name
-        $d2 . hl7Text($porow['docfname']) .         // First Name
-        $d1 .
-        $d1 . (count($payers) ? 'I' : 'P') .          // I=Insurance, C=Client, P=Self Pay
-        str_repeat($d1, 8) .                          // OBR 19-26 not used
-        $d1 . '0' .                                   // ?
-        $d0;
+            $d1 . ++$setid . // Set ID
+            $d1 . $padOrderId . // Placer Order Number
+            $d1 .
+            $d1 . '^^^' . hl7Text($pcrow['procedure_code']) .
+            $d2 . hl7Text($pcrow['procedure_name']) .
+            $d1 . hl7Priority($porow['order_priority']) . // S=Stat, R=Routine
+            $d1 .
+            $d1 . hl7Time($porow['date_collected']) .     // Observation Date/Time
+            str_repeat($d1, 8) .                  // OBR 8-15 not used
+            $d1 . hl7Text($porow['docnpi']) .             // Physician ID
+            $d2 . hl7Text($porow['doclname']) .         // Last Name
+            $d2 . hl7Text($porow['docfname']) . '^^^^^^NPI' .          // First Name
+            $d1 .
+            $d1 . (count($payers) ? 'I' : 'P') .          // I=Insurance, C=Client, P=Self Pay
+            str_repeat($d1, 8) .                          // OBR 19-26 not used
+            $d1 . '0' .                                   // ?
+            $d0;
 
         // Diagnoses.  Currently hard-coded for ICD10 and we'll surely want to make
         // this more flexible (probably when some lab needs another diagnosis type).
@@ -437,10 +443,16 @@ function gen_hl7_order($orderid, &$out)
 
         // Order entry questions and answers.
         $qres = sqlStatement(
-            "SELECT " .
-            "a.question_code, a.answer, q.fldtype " .
-            "FROM procedure_answers AS a " .
-            "LEFT JOIN procedure_questions AS q ON " .
+            "SELECT DISTINCT " .
+            "a.question_code,
+            a.answer,
+            q.fldtype,
+            q.options,
+            q.seq " .
+            "FROM
+            procedure_answers AS a " .
+            "LEFT JOIN
+            procedure_questions AS q ON " .
             "q.lab_id = ? " .
             "AND q.procedure_code = ? AND " .
             "q.question_code = a.question_code " .
@@ -452,46 +464,46 @@ function gen_hl7_order($orderid, &$out)
         );
         $setid2 = 0;
         while ($qrow = sqlFetchArray($qres)) {
-              // Formatting of these answer values may be lab-specific and we'll figure
-              // out how to deal with that as more labs are supported.
-              $answer = trim($qrow['answer']);
-              $fldtype = $qrow['fldtype'];
-              $datatype = 'ST';
+            // Formatting of these answer values may be lab-specific and we'll figure
+            // out how to deal with that as more labs are supported.
+            $answer = trim($qrow['answer']);
+            $fldtype = $qrow['fldtype'];
+            $datatype = 'ST';
             if ($fldtype == 'N') {
                 $datatype = "NM";
             } elseif ($fldtype == 'D') {
-                  $answer = hl7Date($answer);
+                $answer = hl7Date($answer);
             } elseif ($fldtype == 'G') {
-                  $weeks = intval($answer / 7);
-                  $days = $answer % 7;
-                  $answer = $weeks . 'wks ' . $days . 'days';
+                $weeks = intval($answer / 7);
+                $days = $answer % 7;
+                $answer = $weeks . 'wks ' . $days . 'days';
             }
 
-              $out .= "OBX" .
+            $out .= "OBX" .
                 $d1 . ++$setid2 .                           // Set ID
                 $d1 . $datatype .                           // Structure of observation value
-                $d1 . hl7Text($qrow['question_code']) .     // Clinical question code
+                $d1 . "^^^" . hl7Text($qrow['seq']) . "^" . hl7Text($qrow['options']) .     // Clinical question code Quest requires options
                 $d1 .
                 $d1 . hl7Text($answer) .                    // Clinical question answer
-                $d0;
+                $d1 . $d0;
         }
     }
-        //recreate OBX here to add to end of hl7
-        $out .= "OBX" .
-            $d1 . "1" .
-            $d1 . "ST" .
-            $d1 . "PR101^CLINICAL INFORMATION" .
-            $d1 .
-            $d1 . $porow['patient_instructions'] .
-            $d0;
+    //recreate OBX here to add to end of hl7
+    /*$out .= "OBX" .
+        $d1 . "1" .
+        $d1 . "ST" .
+        $d1 . "PR101^CLINICAL INFORMATION" .
+        $d1 .
+        $d1 . $porow['patient_instructions'] .
+        $d0;
 
-        $out .= "OBX" .
-            $d1 . "2" .
-            $d1 . "ST" .
-            $d1 . "PR300^SPECIMEN SOURCE/SAMPLE TYPE" .
-            $d1 .
-            $d1 . $porow['clinical_hx'] .
-            $d0;
+    $out .= "OBX" .
+        $d1 . "2" .
+        $d1 . "ST" .
+        $d1 . "PR300^SPECIMEN SOURCE/SAMPLE TYPE" .
+        $d1 .
+        $d1 . $porow['clinical_hx'] .
+        $d0;*/
 
     return '';
 }
@@ -499,8 +511,8 @@ function gen_hl7_order($orderid, &$out)
 /**
  * Transmit HL7 for the specified lab.
  *
- * @param  integer $ppid  Procedure provider ID.
- * @param  string  $out   The HL7 text to be sent.
+ * @param integer $ppid Procedure provider ID.
+ * @param string $out The HL7 text to be sent.
  * @return string         Error text, or empty if no errors.
  */
 function send_hl7_order($ppid, $out)
@@ -510,7 +522,7 @@ function send_hl7_order($ppid, $out)
     $d0 = "\r";
 
     $pprow = sqlQuery("SELECT * FROM procedure_providers " .
-    "WHERE ppid = ?", array($ppid));
+        "WHERE ppid = ?", array($ppid));
     if (empty($pprow)) {
         return xl('Procedure provider') . " $ppid " . xl('not found');
     }
@@ -518,7 +530,7 @@ function send_hl7_order($ppid, $out)
     $protocol = $pprow['protocol'];
     $remote_host = $pprow['remote_host'];
 
-  // Extract MSH-10 which is the message control ID.
+    // Extract MSH-10 which is the message control ID.
     $segmsh = explode(substr($out, 3, 1), substr($out, 0, strpos($out, $d0)));
     $msgid = $segmsh[9];
     if (empty($msgid)) {
@@ -568,7 +580,7 @@ function send_hl7_order($ppid, $out)
         return xl('This protocol is not implemented') . ": '$protocol'";
     }
 
-  // Falling through to here indicates success.
+    // Falling through to here indicates success.
     EventAuditLogger::instance()->newEvent(
         "proc_order_xmit",
         $_SESSION['authUser'],
