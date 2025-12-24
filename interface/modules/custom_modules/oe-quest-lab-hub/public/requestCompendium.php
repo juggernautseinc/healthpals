@@ -74,7 +74,9 @@ $compendiumFileName = $requestCompendium->requestCompendiumFileList();
                 } else {
                     $compendiumFileName = '';
                     $resourceLocation = '';
-                    
+                    $loc = dirname(__DIR__, 5);
+                    error_log('Compendium Location: ' . $loc);
+                    file_put_contents($loc.'/sites/default/documents/temp/compendium.json', $list);
                     foreach ($list as $item) {
                         if (empty($item)) {
                             continue;

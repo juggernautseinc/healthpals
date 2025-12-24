@@ -42,7 +42,7 @@ class LoadCompendium
      */
     final public function requestCompendiumFileList(): string
     {
-        $resourceLocation = '/hub-resource-server/oauth2/compendium/requestCompendiums';
+        $resourceLocation = '/hub-resource-server/oauth2/compendium/requestCompendiums/CDC?BU=STL';
         $response = new QuestGetCommon();
 
         return $response->getRequestToQuest(
