@@ -82,7 +82,7 @@ $compendiumFileName = $requestCompendium->requestCompendiumFileList();
                             continue;
                         }
                         foreach ($item[0] as $key => $value) {
-                            $pattern = "/TMP_CDC_FULL/";
+                            $pattern = "/";
                             if ($key == 'fileName' && preg_match($pattern, $value)) {
                                 $compendiumFileName = $value;
                             }
