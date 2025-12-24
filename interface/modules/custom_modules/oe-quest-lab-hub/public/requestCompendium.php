@@ -60,31 +60,55 @@ $compendiumFileName = $requestCompendium->requestCompendiumFileList();
             <p><?php echo xlt('This is a list of all the lab orders that can be requested.') ?></p>
 
             <?php
-            $list = json_decode($compendiumFileName, true);
-            foreach ($list as $item) {
-                if (empty($item)) {
-                    continue;
-                }
-                foreach ($item[0] as $key => $value) {
-                    $pattern = "/TMP_CDC_FULL/";
-                    if ($key == 'fileName' && preg_match($pattern, $value)) {
-                        $compendiumFileName = $value;
+            // Check if the response is an error
+            if (strpos($compendiumFileName, 'Error:') === 0) {
+                echo "<div class='alert alert-danger' role='alert'>";
+                echo "<strong>" . xlt('Error loading compendium:') . "</strong> " . htmlspecialchars($compendiumFileName);
+                echo "</div>";
+            } else {
+                $list = json_decode($compendiumFileName, true);
+                if ($list === null) {
+                    echo "<div class='alert alert-danger' role='alert'>";
+                    echo "<strong>" . xlt('Error:') . "</strong> " . xlt('Failed to parse compendium response.');
+                    echo "</div>";
+                } else {
+                    $compendiumFileName = '';
+                    $resourceLocation = '';
+                    
+                    foreach ($list as $item) {
+                        if (empty($item)) {
+                            continue;
+                        }
+                        foreach ($item[0] as $key => $value) {
+                            $pattern = "/TMP_CDC_FULL/";
+                            if ($key == 'fileName' && preg_match($pattern, $value)) {
+                                $compendiumFileName = $value;
+                            }
+                            if ($key == 'retrieveURI' && preg_match($pattern, $value)) {
+                                $resourceLocation = $value;
+                            }
+                        }
                     }
-                    if ($key == 'retrieveURI' && preg_match($pattern, $value)) {
-                        $resourceLocation = $value;
+
+                    if (!empty($compendiumFileName) && !empty($resourceLocation)) {
+                        echo "<p><strong>" . xlt('File Name:') . "</strong> " . htmlspecialchars($compendiumFileName) . "</p>";
+                        echo "<p><strong>" . xlt('Retrieve URI:') . "</strong> " . htmlspecialchars($resourceLocation) . "</p>";
+                    } else {
+                        echo "<div class='alert alert-warning' role='alert'>";
+                        echo xlt('No compendium files found in response.');
+                        echo "</div>";
                     }
                 }
             }
 
-            echo "<p>File Name: $compendiumFileName</p>";
-            echo "<p>Retrieve URI: $resourceLocation</p>";
-
             ?>
         </div>
         <div class="col-md-12" id="stepone">
-            <p><?php echo xlt('File download is completed ') ?></p>
-            <button class='btn btn-primary' id="getCompendiumFile"><?php echo xlt("Import Data"); ?></button>
-            <a href="index.php" class='btn btn-primary ml-3' id="getCompendiumFile"><?php echo xlt("Back"); ?></a>
+            <?php if (!empty($compendiumFileName) && !empty($resourceLocation)) { ?>
+                <p><?php echo xlt('File download is completed ') ?></p>
+                <button class='btn btn-primary' id="getCompendiumFile"><?php echo xlt("Import Data"); ?></button>
+            <?php } ?>
+            <a href="index.php" class='btn btn-primary ml-3'><?php echo xlt("Back"); ?></a>
         </div>
         <div class="loader"></div>
         <div class="col-md-12 mt-4" id="quest-error">
@@ -109,6 +133,7 @@ $compendiumFileName = $requestCompendium->requestCompendiumFileList();
                 type: 'POST',
                 data: data,
                 success: function(response) {
+                    $('.loader').hide();
                     let error = response.substring(0, 5);
                     if (error === 'Error') {
                         $('#quest-error').show().append('<p>' + response + '</p>');
@@ -117,11 +142,10 @@ $compendiumFileName = $requestCompendium->requestCompendiumFileList();
                         $('#quest-error').show().append('<p>' + response + '</p>');
                     }
                     console.log('Success:', response);
-                    $('.loader').hide();
                 },
                 error: function(xhr, status, error) {
-                    $('#quest-error').show().append('<p>' + error + '</p>');
                     $('.loader').hide();
+                    $('#quest-error').show().append('<p>' + error + '</p>');
                     console.error('Error:', error);
                 }
             });

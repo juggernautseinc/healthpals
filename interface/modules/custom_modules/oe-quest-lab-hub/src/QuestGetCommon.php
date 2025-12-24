@@ -69,36 +69,63 @@ class QuestGetCommon
         $resourceLocation
     ): string
     {
-        $token = new QuestToken();
-        $postToken = json_decode($token->getFreshToken(), true);
-        $postToken = $postToken['access_token'] ?? '';
-        $mode = $token->operationMode() ?? '';
-        $curl = curl_init();
-        if (!empty($mode) && !empty($resourceLocation) && !empty($postToken)) {
-            curl_setopt_array($curl, array(
-                CURLOPT_URL => $mode . $resourceLocation,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_ENCODING => '',
-                CURLOPT_MAXREDIRS => 10,
-                CURLOPT_TIMEOUT => 0,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-                CURLOPT_CUSTOMREQUEST => 'GET',
-                CURLOPT_HTTPHEADER => array(
-                    "Authorization: Bearer " . $postToken
-                ),
-            ));
-        } else {
-            error_log(" Quest Lab Order:Debug location " . $mode . $resourceLocation);
-        }
-        $response = curl_exec($curl);
-        $status = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+        try {
+            $token = new QuestToken();
+            $tokenResponse = $token->getFreshToken();
 
-        curl_close($curl);
-        if ($status == 200) {
-            return $response;
-        } else {
-            return "HTTP Status Code: " . $status;
+            // Check if token response is an error code (returned as string)
+            if (is_numeric($tokenResponse)) {
+                $errorMessage = "Failed to retrieve authentication token. HTTP Status Code: " . $tokenResponse;
+                error_log("Quest Lab Order - Token Error: " . $errorMessage);
+                return "Error: " . $errorMessage;
+            }
+
+            $postToken = json_decode($tokenResponse, true);
+
+            // Validate token response structure
+            if (!isset($postToken['access_token'])) {
+                $errorMessage = "Invalid token response. Missing access_token.";
+                error_log("Quest Lab Order - Token Parse Error: " . $errorMessage . " Response: " . $tokenResponse);
+                return "Error: " . $errorMessage;
+            }
+
+            $accessToken = $postToken['access_token'];
+            $mode = $token->operationMode();
+
+            if (empty($mode) || empty($resourceLocation) || empty($accessToken)) {
+                $errorMessage = "Missing required parameters. Mode: " . (!empty($mode) ? 'OK' : 'EMPTY') . 
+                    ", Location: " . (!empty($resourceLocation) ? 'OK' : 'EMPTY') . 
+                    ", Token: " . (!empty($accessToken) ? 'OK' : 'EMPTY');
+                error_log("Quest Lab Order - Config Error: " . $errorMessage);
+                return "Error: " . $errorMessage;
+            }
+
+            // Use Guzzle client for the request
+            $client = new Client();
+
+            $headers = [
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Accept' => 'application/json',
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            ];
+
+            $response = $client->get($mode . $resourceLocation, ['headers' => $headers]);
+
+            if ($response->getStatusCode() === 200) {
+                return $response->getBody()->getContents();
+            } else {
+                $errorMessage = "Unexpected response status: " . $response->getStatusCode();
+                error_log("Quest Lab Order - Request Error: " . $errorMessage);
+                return "Error: " . $errorMessage;
+            }
+        } catch (GuzzleException $e) {
+            $errorMessage = "HTTP Request Error: " . $e->getMessage();
+            error_log("Quest Lab Order - Guzzle Exception: " . $errorMessage);
+            return "Error: " . $errorMessage;
+        } catch (\Exception $e) {
+            $errorMessage = "Unexpected error: " . $e->getMessage();
+            error_log("Quest Lab Order - General Exception: " . $errorMessage);
+            return "Error: " . $errorMessage;
         }
     }
 
