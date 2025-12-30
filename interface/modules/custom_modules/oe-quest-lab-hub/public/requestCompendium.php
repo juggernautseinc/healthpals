@@ -72,25 +72,25 @@ $compendiumFileName = $requestCompendium->requestCompendiumFileList();
                     echo "<strong>" . xlt('Error:') . "</strong> " . xlt('Failed to parse compendium response.');
                     echo "</div>";
                 } else {
-                    $compendiumFileName = '';
-                    $resourceLocation = '';
+                    $compendiumFileName = $list['fullFileLinks'][0]['fileName'];
+                    $resourceLocation = $list['fullFileLinks'][0]['retrieveURI'];
                     $loc = dirname(__DIR__, 5);
                     error_log('Compendium Location: ' . $loc);
                     file_put_contents($loc.'/sites/default/documents/temp/compendium.json', print_r($list, true));
-                    foreach ($list as $item) {
-                        if (empty($item)) {
-                            continue;
-                        }
-                        foreach ($item[0] as $key => $value) {
-                            $pattern = "/";
-                            if ($key == 'fileName' && preg_match($pattern, $value)) {
-                                $compendiumFileName = $value;
-                            }
-                            if ($key == 'retrieveURI' && preg_match($pattern, $value)) {
-                                $resourceLocation = $value;
-                            }
-                        }
-                    }
+//                    foreach ($list as $item) {
+//                        if (empty($item)) {
+//                            continue;
+//                        }
+//                        foreach ($item[0] as $key => $value) {
+//                            $pattern = "/";
+//                            if ($key == 'fileName' && preg_match($pattern, $value)) {
+//                                $compendiumFileName = $value;
+//                            }
+//                            if ($key == 'retrieveURI' && preg_match($pattern, $value)) {
+//                                $resourceLocation = $value;
+//                            }
+//                        }
+//                    }
 
                     if (!empty($compendiumFileName) && !empty($resourceLocation)) {
                         echo "<p><strong>" . xlt('File Name:') . "</strong> " . htmlspecialchars($compendiumFileName) . "</p>";
