@@ -37,8 +37,7 @@ $token = new QuestToken();
             echo "The configuration is completed successful and token retrieved successfully.";
 
         } else {
-            echo "The configuration is incomplete. Check your username and password are in the system. ";
-            print_r($accessToken);
+            echo "The configuration is incomplete. Check your username and password are in the system.";
         }
 
     ?>

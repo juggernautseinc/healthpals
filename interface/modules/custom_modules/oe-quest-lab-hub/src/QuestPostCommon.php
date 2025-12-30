@@ -1,87 +1,140 @@
 <?php
 
-/**
- * Quest API POST Request Handler
+/*
+ *   package   OpenEMR
+ *   link      http://www.open-emr.org
+ *  author    Sherwin Gaddis <sherwingaddis@gmail.com>
+ *  Copyright (c)
+ *  All rights reserved
  *
- * This file contains the QuestPostCommon class which provides standardized
- * functionality for making POST requests to the Quest Diagnostics API.
- * It handles authentication, request formatting, and response processing
- * for all POST operations to Quest endpoints.
- *
- * @package   OpenEMR
- * @link      http://www.open-emr.org
- * @author    Sherwin Gaddis <sherwingaddis@gmail.com>
- * @copyright Copyright (c) Sherwin Gaddis <sherwingaddis@gmail.com>
- * @license   https://github.com/openemr/openemr/blob/master/LICENSE GNU General Public License 3
  */
 
 namespace Juggernaut\Quest\Module;
 
+use GuzzleHttp\Client;
+use OpenEMR\Common\Http\oeHttpRequest;
+use Juggernaut\Quest\Module\Exceptions\QuestHttpException;
+use OpenEMR\Common\Logging\SystemLogger;
+
 /**
- * Class QuestPostCommon
- * 
- * Provides a standardized method for making POST requests to the Quest API.
- * This class handles authentication token management, request formatting,
- * and response processing. It's designed to be reused by various components
- * that need to send data to different Quest API endpoints.
+ * QuestPostCommon
+ *
+ * Handles POST requests to Quest Hub using oeHttpRequest.
+ * Replaces legacy curl implementation with modern HTTP client.
  *
  * @package Juggernaut\Quest\Module
  */
 class QuestPostCommon
 {
     /**
-     * Sends a POST request to a Quest API endpoint
-     * 
-     * Handles the complete request lifecycle including:
-     * - Obtaining a fresh authentication token
-     * - Determining the correct environment URL (test/production)
-     * - Setting up proper headers and request format
-     * - Executing the request and processing the response
-     * - Error handling and logging
+     * HTTP Client
+     * @var oeHttpRequest
+     */
+    private oeHttpRequest $httpClient;
+
+    /**
+     * System logger
+     * @var SystemLogger
+     */
+    private SystemLogger $logger;
+
+    /**
+     * Constructor
+     */
+    public function __construct()
+    {
+        $this->httpClient = new oeHttpRequest(new Client());
+        $this->logger = new SystemLogger();
+    }
+
+    /**
+     * Send a POST request to Quest Hub
      *
-     * @param string $resourceLocation The API endpoint path (e.g., '/hub-resource-server/oauth2/result/getResults')
-     * @param string $payload The JSON-encoded request body
-     * @return string The API response if successful, or an error message with HTTP status code
+     * @param string $resourceLocation API endpoint path
+     * @param string $payload JSON payload as string
+     * @return string Response body from Quest Hub
+     * @throws QuestHttpException If the request fails
      */
     public function postRequestToQuest(
-        $resourceLocation,
-        $payload
-    ): string
-    {
-        $token = new QuestToken();
-        $postToken = json_decode($token->getFreshToken(), true);
-        $postToken = $postToken['access_token'] ?? '';
-        $mode = $token->operationMode() ?? '';
+        string $resourceLocation,
+        string $payload
+    ): string {
+        try {
+            // Validate inputs
+            if (empty($resourceLocation)) {
+                throw new QuestHttpException(
+                    'Resource location cannot be empty',
+                    400
+                );
+            }
 
-        $curl = curl_init();
-        if (!empty($mode) && !empty($resourceLocation) && !empty($payload)) {
-            curl_setopt_array($curl, array(
-                CURLOPT_URL => $mode . $resourceLocation,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_ENCODING => '',
-                CURLOPT_MAXREDIRS => 10,
-                CURLOPT_TIMEOUT => 0,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-                CURLOPT_CUSTOMREQUEST => 'POST',
-                CURLOPT_POSTFIELDS => $payload,
-                CURLOPT_HTTPHEADER => array(
-                    "Authorization: Bearer " . $postToken,
-                    'Content-Type: application/json',
-                ),
-            ));
-        } else {
-            error_log(" Quest Lab Order:Debug location " . $mode . $resourceLocation);
-            error_log(" Quest Lab Order:Debug payload " . $payload);
-        }
-        $response = curl_exec($curl);
-        $status = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+            if (empty($payload)) {
+                throw new QuestHttpException(
+                    'Payload cannot be empty',
+                    400
+                );
+            }
 
-        curl_close($curl);
-        if ($status == 200) {
-            return $response;
-        } else {
-            return "HTTP Status Code: " . $status;
+            // Get fresh token
+            $token = new QuestToken();
+            $tokenResponse = json_decode($token->getFreshToken(), true);
+
+            if (!isset($tokenResponse['access_token'])) {
+                throw new QuestHttpException(
+                    'Failed to extract access token from OAuth2 response',
+                    0,
+                    400,
+                    json_encode($tokenResponse)
+                );
+            }
+
+            $accessToken = $tokenResponse['access_token'];
+            $baseUrl = $token->operationMode();
+
+            // Make the request
+            $response = $this->httpClient
+                ->usingBaseUri($baseUrl)
+                ->usingHeaders([
+                    'Authorization' => 'Bearer ' . $accessToken,
+                    'Content-Type' => 'application/json',
+                ])
+                ->asJson()
+                ->send('POST', $resourceLocation, [
+                    'json' => json_decode($payload, true),
+                ]);
+
+            // Validate response
+            if ($response->getStatusCode() !== 200) {
+                $this->logger->error(
+                    'Quest Hub POST request failed',
+                    [
+                        'endpoint' => $resourceLocation,
+                        'status_code' => $response->getStatusCode(),
+                    ]
+                );
+                throw new QuestHttpException(
+                    'Quest Hub POST request failed',
+                    0,
+                    $response->getStatusCode(),
+                    $response->getBody()
+                );
+            }
+
+            return $response->getBody();
+        } catch (QuestHttpException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            $this->logger->error(
+                'Quest POST request exception',
+                ['error' => $e->getMessage()]
+            );
+            throw new QuestHttpException(
+                'Exception during Quest POST request: ' . $e->getMessage(),
+                0,
+                null,
+                null,
+                $e
+            );
         }
     }
 }

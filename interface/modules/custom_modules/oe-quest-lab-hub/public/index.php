@@ -1,23 +1,11 @@
 <?php
 
 /**
- * Quest Lab Hub Module - Main Interface
- *
- * This file provides the primary user interface for the Quest Lab Hub module.
- * It allows users to enable/disable automatic lab result retrieval, request
- * compendium data, and access module configuration settings. The interface
- * includes tabs for Home, Services, Compendium, and Settings functionality.
- *
- * The home tab provides general information and setup instructions for the module.
- * The services tab allows enabling/disabling the background service for HL7 results.
- * The compendium tab facilitates downloading and importing Quest test codes.
- * The settings tab provides links to configuration options and usage guidance.
- *
- * @package   OpenEMR
- * @link      http://www.open-emr.org
- * @author    Sherwin Gaddis <sherwingaddis@gmail.com>
- * @copyright Copyright (c) Sherwin Gaddis <sherwingaddis@gmail.com>
- * @license   https://github.com/openemr/openemr/blob/master/LICENSE GNU General Public License 3
+ * package OpenEMR
+ * link http://www.open-emr.org
+ * author Sherwin Gaddis <sherwingaddis@gmail.com>
+ * Copyright (c)
+ * All rights reserved
  */
 
 use OpenEMR\Common\Csrf\CsrfUtils;

@@ -1,75 +1,29 @@
 <?php
 
-/**
- * Quest Lab Requisition Document Generator
+/*
+ *   package   OpenEMR
+ *   link      http://www.open-emr.org
+ *  author    Sherwin Gaddis <sherwingaddis@gmail.com>
+ *  Copyright (c)
+ *  All rights reserved
  *
- * This file contains the ProcessRequisitionDocument class which is responsible for
- * generating and retrieving requisition forms from the Quest Diagnostics API.
- * When lab orders are transmitted, this class requests and processes the associated
- * PDF requisition documents that accompany those orders.
- *
- * @package   OpenEMR
- * @link      http://www.open-emr.org
- * @author    Sherwin Gaddis <sherwingaddis@gmail.com>
- * @copyright Copyright (c) Sherwin Gaddis <sherwingaddis@gmail.com>
- * @license   https://github.com/openemr/openemr/blob/master/LICENSE GNU General Public License 3
  */
 
 namespace Juggernaut\Quest\Module;
 
 use Exception;
 
-/**
- * Class ProcessRequisitionDocument
- *
- * Handles the generation and retrieval of requisition documents from the Quest
- * Diagnostics API. This class processes HL7 order messages, transmits them to Quest,
- * and receives PDF requisition forms which are then saved in the OpenEMR document
- * system for printing or viewing.
- * 
- * @package Juggernaut\Quest\Module
- */
 class ProcessRequisitionDocument
 {
-    /**
-     * Base64-encoded HL7 order message to send to Quest API
-     * @var mixed
-     */
     private mixed $orderHl7;
-    
-    /**
-     * Filename for the saved requisition document
-     * @var string
-     */
     private string $reqName;
-    
-    /**
-     * Path where requisition documents will be saved
-     * @var string
-     */
     private string $path;
 
-    /**
-     * Constructor - Initialize with HL7 order data
-     *
-     * Takes an HL7 order message and prepares it for transmission
-     * to the Quest API by base64-encoding it.
-     * 
-     * @param string $orderHl7 Raw HL7 order message
-     */
     public function __construct($orderHl7)
     {
         $this->orderHl7 = base64_encode($orderHl7);
     }
 
-    /**
-     * Builds the request payload for the API call
-     * 
-     * Creates a JSON request body containing the encoded HL7 order
-     * and specifies which document types to request (ABN, REQ, AOE).
-     *
-     * @return bool|string JSON-encoded request payload or false on failure
-     */
     private function buildRequest(): bool|string
     {
         $request = json_encode( [
@@ -83,15 +37,6 @@ class ProcessRequisitionDocument
         return $request;
     }
 
-    /**
-     * Sends the request to Quest API and processes the response
-     * 
-     * Makes the API call to request requisition documents, handles the
-     * response, and saves the returned PDF to the appropriate location.
-     * Includes error handling for API communication issues.
-     *
-     * @return string|false Filename of the saved requisition document or false on failure
-     */
     public function sendRequest(): string
     {
         $token = new QuestToken();
