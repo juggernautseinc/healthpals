@@ -11,88 +11,185 @@
 
 namespace Juggernaut\Quest\Module;
 
-use Exception;
+use GuzzleHttp\Client;
+use OpenEMR\Common\Http\oeHttpRequest;
+use OpenEMR\Common\Logging\SystemLogger;
+use Juggernaut\Quest\Module\Exceptions\QuestHttpException;
+use Juggernaut\Quest\Module\Exceptions\QuestFileSystemException;
 
 class ProcessRequisitionDocument
 {
     private mixed $orderHl7;
     private string $reqName;
     private string $path;
+    private oeHttpRequest $httpClient;
+    private SystemLogger $logger;
 
     public function __construct($orderHl7)
     {
         $this->orderHl7 = base64_encode($orderHl7);
+        $this->httpClient = new oeHttpRequest(new Client());
+        $this->logger = new SystemLogger();
     }
 
     private function buildRequest(): bool|string
     {
-        $request = json_encode( [
+        $request = json_encode([
             "documentTypes" => [
-                                    "ABN", "REQ", "AOE"
-                               ],
-
+                "ABN", "REQ", "AOE"
+            ],
             "orderHl7" => $this->orderHl7
         ]);
-        error_log("Requisition request payload completed");
+        $this->logger->debug("Requisition request payload completed");
         return $request;
     }
 
     public function sendRequest(): string
     {
-        $token = new QuestToken();
-        $mode = $token->operationMode();
-        error_log("Requisition document: " . $mode);
-        $postToken = json_decode($token->getFreshToken(), true);
-        $postToken = $postToken['access_token'] ?? '';
-        $requestPayload = $this->buildRequest();
-
-        $curl = curl_init();
-
-        curl_setopt_array($curl, array(
-            CURLOPT_URL => $mode . '/hub-resource-server/oauth2/order/document',
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_ENCODING => '',
-            CURLOPT_MAXREDIRS => 10,
-            CURLOPT_TIMEOUT => 0,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_CUSTOMREQUEST => 'POST',
-            CURLOPT_POSTFIELDS => $requestPayload,
-            CURLOPT_HTTPHEADER => array(
-                "Authorization: Bearer " . $postToken,
-                'Content-Type: application/json',
-            ),
-        ));
-
         try {
-            $response = curl_exec($curl);
-            if (!$response) {
-                throw new Exception('cURL error: ' . curl_error($curl));
+            $token = new QuestToken();
+            $baseUrl = $token->operationMode();
+            $this->logger->debug("Requisition document request initiated", ['mode' => $baseUrl]);
+
+            $tokenResponse = json_decode($token->getFreshToken(), true);
+            if (!isset($tokenResponse['access_token'])) {
+                throw new QuestHttpException(
+                    'Failed to extract access token from OAuth2 response',
+                    0,
+                    400,
+                    json_encode($tokenResponse)
+                );
             }
 
-            $info = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-            if (!curl_errno($curl)) {
-                $code = $info['http_code'] ?? '';
-                error_log("Requisition document: returned successfully $code");
-                curl_close($curl);
-                $responsePdf = json_decode($response, true);
-                file_put_contents('/var/www/html/emr/sites/' . $_SESSION['site_id'] . '/documents/labs/requisitionRaw.json', $responsePdf);
-                $returnedPdfDocument = $responsePdf['orderSupportDocuments'][0]['documentData'] ?? '';
-                $pdfDecoded = base64_decode($returnedPdfDocument); //This is not a base64 encoded string
-                $this->path = Bootstrap::requisitionFormPath();
-                $this->reqName = 'labRequisition-' . time() . '.pdf';
-                $directory = new DirectoryCheckCreate();
-                file_put_contents($this->path . $this->reqName, base64_decode($pdfDecoded));
-                return $this->reqName;
-            } else {
-                error_log('Requisition document: retrieval failed ' . $info['http_code']);
-                curl_close($curl);
-                return false;
+            $accessToken = $tokenResponse['access_token'];
+            $requestPayload = $this->buildRequest();
+
+            // Make HTTP request using oeHttpRequest
+            $response = $this->httpClient
+                ->usingBaseUri($baseUrl)
+                ->usingHeaders([
+                    'Authorization' => 'Bearer ' . $accessToken,
+                    'Content-Type' => 'application/json',
+                ])
+                ->asJson()
+                ->send('POST', '/hub-resource-server/oauth2/order/document', [
+                    'body' => $requestPayload,
+                ]);
+
+            $statusCode = $response->getStatusCode();
+            if ($statusCode !== 200) {
+                $this->logger->error(
+                    'Requisition document request failed',
+                    ['status_code' => $statusCode]
+                );
+                throw new QuestHttpException(
+                    'Requisition document request failed',
+                    0,
+                    $statusCode,
+                    $response->getBody()
+                );
             }
-        } catch (Exception $e) {
-            error_log('Requisition document: ' . $e->getMessage());
-            file_put_contents($this->path . $this->reqName, "Requisition form not available. Contact Quest Diagnostics");
-            return false;
+
+            $this->logger->debug('Requisition document returned successfully', ['status_code' => $statusCode]);
+
+            // Ensure directories exist
+            $this->ensureDirectories();
+
+            // Parse response
+            $responsePdf = json_decode($response->getBody(), true);
+            if (!is_array($responsePdf)) {
+                throw new QuestHttpException(
+                    'Invalid JSON response from Quest',
+                    0,
+                    400,
+                    $response->getBody()
+                );
+            }
+
+            // Save raw response for debugging
+            $rawJsonPath = $GLOBALS['OE_SITE_DIR'] . '/documents/labs/requisitionRaw.json';
+            file_put_contents($rawJsonPath, json_encode($responsePdf, JSON_PRETTY_PRINT));
+
+            // Extract PDF data
+            $returnedPdfDocument = $responsePdf['orderSupportDocuments'][0]['documentData'] ?? '';
+            if (empty($returnedPdfDocument)) {
+                throw new QuestHttpException(
+                    'No PDF document data in response',
+                    0,
+                    400,
+                    json_encode($responsePdf)
+                );
+            }
+
+            // Decode and save PDF
+            $pdfDecoded = base64_decode($returnedPdfDocument, true);
+            if ($pdfDecoded === false) {
+                throw new QuestHttpException(
+                    'Failed to decode base64 PDF data',
+                    0,
+                    400
+                );
+            }
+
+            $this->path = Bootstrap::requisitionFormPath();
+            $this->reqName = 'labRequisition-' . time() . '.pdf';
+            $pdfPath = $this->path . $this->reqName;
+
+            if (file_put_contents($pdfPath, $pdfDecoded) === false) {
+                throw new QuestFileSystemException(
+                    'Failed to write PDF file to: ' . $pdfPath
+                );
+            }
+
+            $this->logger->info('Requisition PDF saved successfully', ['file' => $this->reqName]);
+            return $this->reqName;
+
+        } catch (QuestHttpException $e) {
+            $this->logger->error('Quest HTTP error during requisition fetch', [
+                'error' => $e->getMessage(),
+                'status_code' => $e->getCode()
+            ]);
+            throw $e;
+        } catch (QuestFileSystemException $e) {
+            $this->logger->error('Filesystem error during requisition save', [
+                'error' => $e->getMessage()
+            ]);
+            throw $e;
+        } catch (\Exception $e) {
+            $this->logger->error('Unexpected error during requisition fetch', [
+                'error' => $e->getMessage()
+            ]);
+            throw new QuestHttpException(
+                'Unexpected error fetching requisition: ' . $e->getMessage(),
+                0,
+                null,
+                null,
+                $e
+            );
+        }
+    }
+
+    /**
+     * Ensure all required directories exist
+     *
+     * @return void
+     * @throws QuestFileSystemException
+     */
+    private function ensureDirectories(): void
+    {
+        $baseDir = $GLOBALS['OE_SITE_DIR'] . '/documents/labs/';
+        $subdirs = ['quest', 'quest/logs'];
+
+        foreach ($subdirs as $subdir) {
+            $fullPath = $baseDir . $subdir;
+            if (!is_dir($fullPath)) {
+                if (!mkdir($fullPath, 0755, true)) {
+                    throw new QuestFileSystemException(
+                        'Failed to create directory: ' . $fullPath
+                    );
+                }
+                $this->logger->debug('Created directory', ['path' => $fullPath]);
+            }
         }
     }
 }
