@@ -121,7 +121,8 @@ class ProcessRequisitionDocument
                 );
             }
 
-            // Decode and save PDF
+            // Decode PDF - Quest returns double base64 encoded data
+            // First decode: converts from JSON base64 to intermediate string
             $pdfDecoded = base64_decode($returnedPdfDocument, true);
             if ($pdfDecoded === false) {
                 throw new QuestHttpException(
@@ -131,11 +132,21 @@ class ProcessRequisitionDocument
                 );
             }
 
+            // Second decode: converts from intermediate base64 to actual PDF binary
+            $pdfBinary = base64_decode($pdfDecoded, true);
+            if ($pdfBinary === false) {
+                throw new QuestHttpException(
+                    'Failed to decode second-level base64 PDF data',
+                    0,
+                    400
+                );
+            }
+
             $this->path = Bootstrap::requisitionFormPath();
             $this->reqName = 'labRequisition-' . time() . '.pdf';
             $pdfPath = $this->path . $this->reqName;
 
-            if (file_put_contents($pdfPath, $pdfDecoded) === false) {
+            if (file_put_contents($pdfPath, $pdfBinary) === false) {
                 throw new QuestFileSystemException(
                     'Failed to write PDF file to: ' . $pdfPath
                 );
