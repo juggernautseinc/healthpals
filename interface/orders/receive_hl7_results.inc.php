@@ -1008,7 +1008,8 @@ function receive_hl7_results(&$hl7, &$matchreq, $lab_id = 0, $direction = 'B', $
             $context = $a[0];
             $arep = array();
             if ($direction != 'R' && $a[2]) {
-                $in_orderid = intval($a[2]);
+                $in_orderid = explode('-', $a[2]);
+                $in_orderid = intval($in_orderid[1]);
                 $porow = false;
                 $pcrow = false;
             }
