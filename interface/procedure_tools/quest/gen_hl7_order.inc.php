@@ -411,6 +411,24 @@ function gen_hl7_order($orderid, &$out)
             $d1 . '0' .                                   // ?
             $d0;
 
+        // NTE segments for comments to the lab
+        $nte_setid = 0;
+        if (!empty($porow['patient_instructions'])) {
+            $out .= "NTE" .
+                $d1 . ++$nte_setid .
+                $d1 . "L" .
+                $d1 . hl7Text($porow['patient_instructions']) .
+                $d0;
+        }
+
+        if (!empty($porow['clinical_hx'])) {
+            $out .= "NTE" .
+                $d1 . ++$nte_setid .
+                $d1 . "L" .
+                $d1 . hl7Text($porow['clinical_hx']) .
+                $d0;
+        }
+
         // Diagnoses.  Currently hard-coded for ICD10 and we'll surely want to make
         // this more flexible (probably when some lab needs another diagnosis type).
         $test_diagnosis = $pcrow['diagnoses'];
@@ -488,22 +506,6 @@ function gen_hl7_order($orderid, &$out)
                 $d1 . $d0;
         }
     }
-    //recreate OBX here to add to end of hl7
-    /*$out .= "OBX" .
-        $d1 . "1" .
-        $d1 . "ST" .
-        $d1 . "PR101^CLINICAL INFORMATION" .
-        $d1 .
-        $d1 . $porow['patient_instructions'] .
-        $d0;
-
-    $out .= "OBX" .
-        $d1 . "2" .
-        $d1 . "ST" .
-        $d1 . "PR300^SPECIMEN SOURCE/SAMPLE TYPE" .
-        $d1 .
-        $d1 . $porow['clinical_hx'] .
-        $d0;*/
 
     return '';
 }
