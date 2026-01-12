@@ -438,8 +438,8 @@ if (($_POST['bn_save'] ?? null) || !empty($_POST['bn_xmit']) || !empty($_POST['b
                         ":\n" . $hl7 . "\n";
                     if ($gbl_lab === 'quest') {
                         $order_log .= xlt("Transmitting order to Quest");
-                        $ed->dispatch(new QuestLabTransmitEvent($hl7), QuestLabTransmitEvent::EVENT_LAB_TRANSMIT, 10);
-                        $ed->dispatch(new QuestLabTransmitEvent($pid), QuestLabTransmitEvent::EVENT_LAB_POST_ORDER_LOAD, 10);
+                        $ed->dispatch(new QuestLabTransmitEvent($hl7, $formid, $pid), QuestLabTransmitEvent::EVENT_LAB_TRANSMIT, 10);
+                        $ed->dispatch(new QuestLabTransmitEvent($pid, $formid, $pid), QuestLabTransmitEvent::EVENT_LAB_POST_ORDER_LOAD, 10);
                     }
 
                     if ($_POST['form_order_psc']) {

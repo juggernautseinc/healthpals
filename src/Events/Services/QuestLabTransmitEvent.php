@@ -26,15 +26,30 @@ class QuestLabTransmitEvent extends Event
     const EVENT_LAB_POST_ORDER_LOAD = 'lab.post_order_load';
 
     private string $order;
-    public function __construct($hl7)
+    private int $orderId = 0;
+    private int $patientId = 0;
+
+    public function __construct($hl7, int $orderId = 0, int $patientId = 0)
     {
         if (is_string($hl7)) {
             $this->order = $hl7;
         }
+        $this->orderId = $orderId;
+        $this->patientId = $patientId;
     }
 
     public function getOrder(): string
     {
         return $this->order;
+    }
+
+    public function getOrderId(): int
+    {
+        return $this->orderId;
+    }
+
+    public function getPatientId(): int
+    {
+        return $this->patientId;
     }
 }

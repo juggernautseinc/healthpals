@@ -19,6 +19,8 @@
 
     namespace Juggernaut\Quest\Module;
 
+    require_once(__DIR__ . '/../../../../../library/classes/Document.class.php');
+
     /**
      * Note the below use statements are importing classes from the OpenEMR core codebase
      */
@@ -30,6 +32,7 @@
     use OpenEMR\Services\Globals\GlobalSetting;
     use OpenEMR\Menu\MenuEvent;
     use Symfony\Component\EventDispatcher\EventDispatcherInterface;
+    use Document;
 
     /**
      * Class Bootstrap
@@ -210,10 +213,106 @@
 
             //call to get the requisition document from QuestLab
             if ($GLOBALS['oe_quest_download_requisition']) { // the requisition form is optional and can be turned off
-                $pdf = new ProcessRequisitionDocument($requisitionOrder);
-                error_log('Requisition form downloaded');
-                $this->requisitionFormName = $pdf->sendRequest(); //send request for requisition
-                error_log("order sent to be transmitted");
+                try {
+                    $pdf = new ProcessRequisitionDocument($requisitionOrder);
+                    error_log('Requisition form downloaded');
+                    $result = $pdf->sendRequest(); //send request for requisition
+                    error_log("order sent to be transmitted");
+
+                    // Store the filename for desktop download
+                    if (is_array($result)) {
+                        $this->requisitionFormName = $result['filename'];
+                        // Store document in database if order ID is available
+                        if ($event->getOrderId()) {
+                            $this->storeRequisitionDocument(
+                                $result,
+                                $event->getOrderId(),
+                                $event->getPatientId()
+                            );
+                        }
+                    }
+                } catch (\Exception $e) {
+                    $this->logger->error('Error processing requisition document', [
+                        'error' => $e->getMessage(),
+                        'order' => $requisitionOrder
+                    ]);
+                }
+            }
+        }
+
+        /**
+         * Stores the requisition document in the OpenEMR documents database table
+         *
+         * @param array $requisitionData Array containing 'filename' and 'binary' keys
+         * @param int $orderId The procedure_order_id
+         * @param int $patientId The patient ID
+         * @return void
+         */
+        private function storeRequisitionDocument(array $requisitionData, int $orderId, int $patientId): void
+        {
+            try {
+                if (empty($requisitionData['binary']) || empty($requisitionData['filename'])) {
+                    $this->logger->warning('Invalid requisition data for database storage');
+                    return;
+                }
+
+                // Get or create the "Lab Report" category for documents
+                $categoryResult = sqlQuery(
+                    "SELECT id FROM categories WHERE name LIKE ? LIMIT 1",
+                    array('Lab%Report%')
+                );
+                $categoryId = $categoryResult['id'] ?? 0;
+
+                if (empty($categoryId)) {
+                    // If no Lab Report category exists, try a default category
+                    $categoryResult = sqlQuery(
+                        "SELECT id FROM categories WHERE name LIKE ? LIMIT 1",
+                        array('Documents%')
+                    );
+                    $categoryId = $categoryResult['id'] ?? 0;
+                }
+
+                if (!empty($categoryId)) {
+                    $document = new Document();
+                    $pdfData = $requisitionData['binary'];
+                    $filename = $requisitionData['filename'];
+
+                    $error = $document->createDocument(
+                        $patientId,
+                        $categoryId,
+                        $filename,
+                        'application/pdf',
+                        $pdfData,
+                        'quest',
+                        1,
+                        $_SESSION['authUserID'] ?? 0,
+                        null,
+                        null,
+                        $orderId,
+                        'procedure_order'
+                    );
+
+                    if (empty($error)) {
+                        // Update documentationOf field to identify as requisition
+                        sqlStatement(
+                            "UPDATE documents SET documentationOf = ? WHERE id = ?",
+                            array('REQ', $document->get_id())
+                        );
+                        $this->logger->info('Requisition document stored successfully', [
+                            'document_id' => $document->get_id(),
+                            'order_id' => $orderId
+                        ]);
+                    } else {
+                        $this->logger->error('Failed to create requisition document', ['error' => $error]);
+                    }
+                } else {
+                    $this->logger->warning('No document category found for storing requisition');
+                }
+            } catch (\Exception $e) {
+                $this->logger->error('Exception while storing requisition document', [
+                    'error' => $e->getMessage(),
+                    'order_id' => $orderId
+                ]);
             }
         }
 
