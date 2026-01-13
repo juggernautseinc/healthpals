@@ -83,15 +83,11 @@ function hl7Sex($s)
 
 function hl7Phone($s)
 {
-    /*if (preg_match("/([2-9]\d\d)\D*(\d\d\d)\D*(\d\d\d\d)\D*$/", $s, $tmp)) {
-        return $s; //'(' . $tmp[1] . ')' . $tmp[2] . '-' . $tmp[3];
-    }
-
-    if (preg_match("/(\d\d\d)\D*(\d\d\d\d)\D*$/", $s, $tmp)) {
-        return $tmp[1] . '-' . $tmp[2];
-    }*/
-
-    return '';
+    // Strip all non-numeric characters from phone number
+    $phone = preg_replace('/[^0-9]/', '', $s);
+    
+    // Return the numeric-only phone number
+    return $phone;
 }
 
 function hl7SSN($s)
