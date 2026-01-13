@@ -13,12 +13,13 @@ require_once(__DIR__ . '/interface/globals.php');
 
 use OpenEMR\Common\Crypto\CryptoGen;
 
-$directory = __DIR__ . '/sites/default/documents/procedure_results/1-98765432';
-$encrypted_contents = __DIR__ . '/sites/default/documents/procedure_results/1-98765432/quest_results_2026-01-08 18:20:35_1.hl7';
+$directory = 'sites/default/documents/procedure_results/1-98765432';
+$encrypted_contents = 'sites/default/documents/procedure_results/1-98765432/quest_results_2026-01-08 18:20:35_1.hl7';
 
 $whatsinthere = file_get_contents($encrypted_contents);
 
 var_dump($whatsinthere);
+
 echo $directory . PHP_EOL;
 
 $iterator = new DirectoryIterator($directory);
