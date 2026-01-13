@@ -18,10 +18,12 @@ $directory = 'sites/default/documents/temp';
 $iterator = new DirectoryIterator($directory);
 
 
-    echo "Show contents: " . PHP_EOL;
+    echo "Show contents: <br>";
+    $i = 0;
     foreach ($iterator as $fileinfo) {
+        if ($i === 0) continue;
         if ($fileinfo->isFile()) {
-            echo $fileinfo->getFilename() . "<br>";
+            echo "<a href=''" . $fileinfo->getFilename() . "</a><br>";
         }
     }
 
