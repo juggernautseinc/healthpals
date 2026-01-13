@@ -22,7 +22,7 @@ $iterator = new DirectoryIterator($directory);
     $i = 0;
     foreach ($iterator as $fileinfo) {
         if ($i === 0) {
-            ++$i;
+            echo ++$i;
             continue;
         }
         if ($fileinfo->isFile()) {
