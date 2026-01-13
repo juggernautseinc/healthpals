@@ -1,19 +1,89 @@
 <?php
 /**
  * Script to decrypt HL7 result files encrypted by OpenEMR
- * Usage: php decrypt_hl7.php <input_file> [output_file]
+ *
+ * Usage:
+ *   List files:    php decrypt_hl7.php --list <directory>
+ *   Decrypt file:  php decrypt_hl7.php <input_file> [output_file]
  */
+
 
 require_once(__DIR__ . '/interface/globals.php');
 
 use OpenEMR\Common\Crypto\CryptoGen;
 
 if ($argc < 2) {
-    echo "Usage: php decrypt_hl7.php <input_file> [output_file]\n";
-    echo "Example: php decrypt_hl7.php '/home/sherwin/Documents/HealthPal/Results/quest_results_2026-01-08 18:20:35_1.hl7'\n";
+    echo "Usage:\n";
+    echo "  List files:    php decrypt_hl7.php --list <directory>\n";
+    echo "  Decrypt file:  php decrypt_hl7.php <input_file> [output_file]\n";
+    echo "\nExamples:\n";
+    echo "  php decrypt_hl7.php --list /path/to/procedure_results/\n";
+    echo "  php decrypt_hl7.php '/path/to/file.hl7'\n";
     exit(1);
 }
 
+// Handle --list command
+if ($argv[1] === '--list') {
+    if ($argc < 3) {
+        echo "Error: Please specify a directory to list\n";
+        exit(1);
+    }
+
+    $directory = rtrim($argv[2], '/');
+
+    if (!is_dir($directory)) {
+        echo "Error: Directory does not exist: $directory\n";
+        exit(1);
+    }
+
+    echo "Listing files in: $directory\n";
+    echo str_repeat("=", 100) . "\n\n";
+
+    $files = scandir($directory);
+    $count = 0;
+
+    foreach ($files as $file) {
+        if ($file === '.' || $file === '..') {
+            continue;
+        }
+
+        $fullPath = $directory . '/' . $file;
+
+        if (is_file($fullPath)) {
+            $count++;
+            $size = filesize($fullPath);
+            $modified = date('Y-m-d H:i:s', filemtime($fullPath));
+
+            // Check if file appears to be encrypted
+            $encrypted = 'Unknown';
+            $handle = @fopen($fullPath, 'r');
+            if ($handle) {
+                $firstBytes = fread($handle, 3);
+                fclose($handle);
+                if (preg_match('/^00[1-6]/', $firstBytes)) {
+                    $encrypted = 'Yes (v' . $firstBytes . ')';
+                } else {
+                    $encrypted = 'No';
+                }
+            }
+
+            printf("%4d. %-50s %12s  %s  Enc: %s\n",
+                   $count,
+                   $file,
+                   number_format($size) . ' bytes',
+                   $modified,
+                   $encrypted);
+        }
+    }
+
+    echo "\n" . str_repeat("=", 100) . "\n";
+    echo "Total files: $count\n";
+    echo "\nTo decrypt a file, run:\n";
+    echo "  php decrypt_hl7.php '$directory/<filename>'\n";
+    exit(0);
+}
+
+// Handle decrypt command
 $inputFile = $argv[1];
 $outputFile = $argv[2] ?? null;
 
@@ -56,16 +126,16 @@ try {
 
     // Output or save
     if ($outputFile) {
-        if (file_put_contents($outputFile, $decryptedContent) === false) {
+        if (file_puts($outputFile, $decryptedContent) === false) {
             echo "Error: Could not write to output file: $outputFile\n";
             exit(1);
         }
         echo "Successfully decrypted to: $outputFile\n";
     } else {
         echo "Decrypted HL7 content:\n";
-        echo "=" . str_repeat("=", 70) . "\n";
+        echo "=" . str_repeat("=", 98) . "\n";
         echo $decryptedContent;
-        echo "\n" . str_repeat("=", 71) . "\n";
+        echo "\n" . str_repeat("=", 99) . "\n";
     }
 
 } catch (Exception $e) {
