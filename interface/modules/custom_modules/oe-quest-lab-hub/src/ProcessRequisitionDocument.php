@@ -24,7 +24,6 @@ class ProcessRequisitionDocument
     private string $path;
     private oeHttpRequest $httpClient;
     private SystemLogger $logger;
-    private string $pdfBinary = '';
 
     public function __construct($orderHl7)
     {
@@ -153,14 +152,8 @@ class ProcessRequisitionDocument
                 );
             }
 
-            // Store binary data for database storage
-            $this->pdfBinary = $pdfBinary;
-
             $this->logger->info('Requisition PDF saved successfully', ['file' => $this->reqName]);
-            return [
-                'filename' => $this->reqName,
-                'binary' => $pdfBinary
-            ];
+            return $this->reqName;
 
         } catch (QuestHttpException $e) {
             $this->logger->error('Quest HTTP error during requisition fetch', [
@@ -185,16 +178,6 @@ class ProcessRequisitionDocument
                 $e
             );
         }
-    }
-
-    /**
-     * Get the PDF binary data
-     *
-     * @return string
-     */
-    public function getPdfBinary(): string
-    {
-        return $this->pdfBinary;
     }
 
     /**

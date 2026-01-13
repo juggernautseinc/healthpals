@@ -83,11 +83,15 @@ function hl7Sex($s)
 
 function hl7Phone($s)
 {
-    // Strip all non-numeric characters from phone number
-    $phone = preg_replace('/[^0-9]/', '', $s);
-    
-    // Return the numeric-only phone number
-    return $phone;
+    /*if (preg_match("/([2-9]\d\d)\D*(\d\d\d)\D*(\d\d\d\d)\D*$/", $s, $tmp)) {
+        return $s; //'(' . $tmp[1] . ')' . $tmp[2] . '-' . $tmp[3];
+    }
+
+    if (preg_match("/(\d\d\d)\D*(\d\d\d\d)\D*$/", $s, $tmp)) {
+        return $tmp[1] . '-' . $tmp[2];
+    }*/
+
+    return '';
 }
 
 function hl7SSN($s)
@@ -373,13 +377,6 @@ function gen_hl7_order($orderid, &$out)
 
     $setid = 0;
     while ($pcrow = sqlFetchArray($pcres)) {
-        // Fetch procedure type to get specimen information
-        $ptrow = sqlQuery(
-            "SELECT specimen FROM procedure_type WHERE procedure_code = ? AND lab_id = ? LIMIT 1",
-            array($pcrow['procedure_code'], $porow['ppid'])
-        );
-        $specimen = $ptrow['specimen'] ?? '';
-
         // Common Order. //Quest needs this inside the loop
         $out .= "ORC" .
             $d1 . "NW" .                     // New Order
@@ -413,17 +410,6 @@ function gen_hl7_order($orderid, &$out)
             str_repeat($d1, 8) .                          // OBR 19-26 not used
             $d1 . '0' .                                   // ?
             $d0;
-
-        // OBX segment for specimen source
-        if (!empty($specimen)) {
-            $out .= "OBX" .
-                $d1 . "1" .                              // Set ID
-                $d1 . "ST" .                             // Data Type (String)
-                $d1 . "^^^0^" .                          // Observation Identifier
-                $d1 .
-                $d1 . hl7Text($specimen) .               // Specimen Source
-                $d1 . $d0;
-        }
 
         // NTE segments for comments to the lab
         $nte_setid = 0;

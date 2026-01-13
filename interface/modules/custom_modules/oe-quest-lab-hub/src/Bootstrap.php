@@ -19,8 +19,6 @@
 
     namespace Juggernaut\Quest\Module;
 
-    require_once(__DIR__ . '/../../../../../library/classes/Document.class.php');
-
     /**
      * Note the below use statements are importing classes from the OpenEMR core codebase
      */
@@ -32,7 +30,6 @@
     use OpenEMR\Services\Globals\GlobalSetting;
     use OpenEMR\Menu\MenuEvent;
     use Symfony\Component\EventDispatcher\EventDispatcherInterface;
-    use Document;
 
     /**
      * Class Bootstrap
@@ -204,189 +201,37 @@
         public function sendOrderToQuestLab(QuestLabTransmitEvent $event): void
         {
             $order = $event->getOrder(); // get the order from the event
+            $requisitionOrder = $order;
             $result = new ProcessLabOrder($order); // create a new process lab order We might want to return errors here
             //This logging is for debugging purposes
 
             $location = dirname(__DIR__, 5) . "/sites/" . $_SESSION['site_id'] . "/documents/labs/";
             file_put_contents($location . 'labOrderResultDebug.txt', print_r($result, true) .PHP_EOL, FILE_APPEND);
 
-            $this->logger->info('Order transmitted to Quest successfully', [
-                'order_id' => $event->getOrderId()
-            ]);
-        }
-
-        /**
-         * Stores the requisition document in the OpenEMR documents database table
-         *
-         * @param array $requisitionData Array containing 'filename' and 'binary' keys
-         * @param int $orderId The procedure_order_id
-         * @param int $patientId The patient ID
-         * @return void
-         */
-        private function storeRequisitionDocument(array $requisitionData, int $orderId, int $patientId): void
-        {
-            try {
-                if (empty($requisitionData['binary']) || empty($requisitionData['filename'])) {
-                    $this->logger->warning('Invalid requisition data for database storage');
-                    return;
-                }
-
-                // Get or create the "Lab Report" category for documents
-                $categoryResult = sqlQuery(
-                    "SELECT id FROM categories WHERE name LIKE ? LIMIT 1",
-                    array('Lab%Report%')
-                );
-                $categoryId = $categoryResult['id'] ?? 0;
-
-                if (empty($categoryId)) {
-                    // If no Lab Report category exists, try a default category
-                    $categoryResult = sqlQuery(
-                        "SELECT id FROM categories WHERE name LIKE ? LIMIT 1",
-                        array('Documents%')
-                    );
-                    $categoryId = $categoryResult['id'] ?? 0;
-                }
-
-                if (!empty($categoryId)) {
-                    $document = new Document();
-                    $pdfData = $requisitionData['binary'];
-                    $filename = $requisitionData['filename'];
-
-                    $error = $document->createDocument(
-                        $patientId,
-                        $categoryId,
-                        $filename,
-                        'application/pdf',
-                        $pdfData,
-                        'quest',
-                        1,
-                        $_SESSION['authUserID'] ?? 0,
-                        null,
-                        null,
-                        $orderId,
-                        'procedure_order'
-                    );
-
-                    if (empty($error)) {
-                        // Update documentationOf field to identify as requisition
-                        sqlStatement(
-                            "UPDATE documents SET documentationOf = ? WHERE id = ?",
-                            array('REQ', $document->get_id())
-                        );
-                        $this->logger->info('Requisition document stored successfully', [
-                            'document_id' => $document->get_id(),
-                            'order_id' => $orderId
-                        ]);
-                    } else {
-                        $this->logger->error('Failed to create requisition document', ['error' => $error]);
-                    }
-                } else {
-                    $this->logger->warning('No document category found for storing requisition');
-                }
-            } catch (\Exception $e) {
-                $this->logger->error('Exception while storing requisition document', [
-                    'error' => $e->getMessage(),
-                    'order_id' => $orderId
-                ]);
+            //call to get the requisition document from QuestLab
+            if ($GLOBALS['oe_quest_download_requisition']) { // the requisition form is optional and can be turned off
+                $pdf = new ProcessRequisitionDocument($requisitionOrder);
+                error_log('Requisition form downloaded');
+                $this->requisitionFormName = $pdf->sendRequest(); //send request for requisition
+                error_log("order sent to be transmitted");
             }
         }
 
         /**
-         * Fetches requisition document and downloads to desktop
+         * Downloads the requisition PDF form to the user's desktop
          *
-         * This is called AFTER the order has been transmitted to Quest.
-         * It fetches the requisition document from Quest and stores it.
-         * Uses retry logic with exponential backoff as Quest needs time to process the order.
+         * Initiates the download of the requisition PDF form that was generated
+         * during the lab order processing.
          *
-         * @param QuestLabTransmitEvent $event The lab transmit event containing order data
          * @return void
          */
-        public function downloadPdfToDesktop(QuestLabTransmitEvent $event): void
+        public function downloadPdfToDesktop(): void
         {
-            // Only fetch requisition if enabled in globals
-            if (!$GLOBALS['oe_quest_download_requisition']) {
-                return;
+            $sendDownload = new DownloadRequisition();
+            if (!empty($this->requisitionFormName)) {
+                error_log('File name ' . $this->requisitionFormName);
+                $sendDownload->downloadLabPdfRequisition($this->requisitionFormName);
             }
-
-            $order = $event->getOrder();
-            $maxRetries = 3;
-            $retryDelay = 2; // Initial delay in seconds
-            $lastException = null;
-            
-            for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
-                try {
-                    // Give Quest time to process the order before requesting requisition
-                    // Quest needs time to receive and process the HL7 order before it can generate the requisition
-                    if ($attempt > 1) {
-                        $this->logger->info('Retrying requisition fetch', [
-                            'attempt' => $attempt,
-                            'delay' => $retryDelay,
-                            'order_id' => $event->getOrderId()
-                        ]);
-                    } else {
-                        $this->logger->info('Requesting requisition document from Quest', [
-                            'order_id' => $event->getOrderId()
-                        ]);
-                    }
-                    
-                    sleep($retryDelay);
-                    
-                    $pdf = new ProcessRequisitionDocument($order);
-                    $result = $pdf->sendRequest();
-
-                    // Store the filename for desktop download and database storage
-                    if (is_array($result)) {
-                        $this->requisitionFormName = $result['filename'];
-                        
-                        // Store document in database if order ID is available
-                        if ($event->getOrderId()) {
-                            $this->storeRequisitionDocument(
-                                $result,
-                                $event->getOrderId(),
-                                $event->getPatientId()
-                            );
-                        }
-                        
-                        // Download to user's desktop
-                        $sendDownload = new DownloadRequisition();
-                        if (!empty($this->requisitionFormName)) {
-                            $this->logger->info('Downloading requisition to desktop', [
-                                'filename' => $this->requisitionFormName,
-                                'attempt' => $attempt
-                            ]);
-                            $sendDownload->downloadLabPdfRequisition($this->requisitionFormName);
-                        }
-                        
-                        // Success - break out of retry loop
-                        return;
-                    } else {
-                        $this->logger->warning('Requisition request returned non-array result', [
-                            'attempt' => $attempt
-                        ]);
-                        throw new \Exception('Invalid requisition response format');
-                    }
-                } catch (\Exception $e) {
-                    $lastException = $e;
-                    $this->logger->warning('Requisition fetch attempt failed', [
-                        'attempt' => $attempt,
-                        'max_retries' => $maxRetries,
-                        'error' => $e->getMessage(),
-                        'order_id' => $event->getOrderId()
-                    ]);
-                    
-                    // If this is not the last attempt, increase delay for next retry (exponential backoff)
-                    if ($attempt < $maxRetries) {
-                        $retryDelay = $retryDelay * 2; // Double the delay for next attempt
-                    }
-                }
-            }
-            
-            // All retries failed
-            $this->logger->error('Failed to fetch requisition after all retries', [
-                'attempts' => $maxRetries,
-                'last_error' => $lastException ? $lastException->getMessage() : 'Unknown error',
-                'order_id' => $event->getOrderId()
-            ]);
         }
 
         /**
