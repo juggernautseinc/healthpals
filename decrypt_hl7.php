@@ -21,7 +21,10 @@ $iterator = new DirectoryIterator($directory);
     echo "Show contents: <br>";
     $i = 0;
     foreach ($iterator as $fileinfo) {
-        if ($i === 0) continue;
+        if ($i === 0) {
+            $i++;
+            continue;
+        }
         if ($fileinfo->isFile()) {
             echo "<a href=''" . $fileinfo->getFilename() . "</a><br>";
         }
