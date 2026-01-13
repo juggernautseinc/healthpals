@@ -204,40 +204,15 @@
         public function sendOrderToQuestLab(QuestLabTransmitEvent $event): void
         {
             $order = $event->getOrder(); // get the order from the event
-            $requisitionOrder = $order;
             $result = new ProcessLabOrder($order); // create a new process lab order We might want to return errors here
             //This logging is for debugging purposes
 
             $location = dirname(__DIR__, 5) . "/sites/" . $_SESSION['site_id'] . "/documents/labs/";
             file_put_contents($location . 'labOrderResultDebug.txt', print_r($result, true) .PHP_EOL, FILE_APPEND);
 
-            //call to get the requisition document from QuestLab
-            if ($GLOBALS['oe_quest_download_requisition']) { // the requisition form is optional and can be turned off
-                try {
-                    $pdf = new ProcessRequisitionDocument($requisitionOrder);
-                    error_log('Requisition form downloaded');
-                    $result = $pdf->sendRequest(); //send request for requisition
-                    error_log("order sent to be transmitted");
-
-                    // Store the filename for desktop download
-                    if (is_array($result)) {
-                        $this->requisitionFormName = $result['filename'];
-                        // Store document in database if order ID is available
-                        if ($event->getOrderId()) {
-                            $this->storeRequisitionDocument(
-                                $result,
-                                $event->getOrderId(),
-                                $event->getPatientId()
-                            );
-                        }
-                    }
-                } catch (\Exception $e) {
-                    $this->logger->error('Error processing requisition document', [
-                        'error' => $e->getMessage(),
-                        'order' => $requisitionOrder
-                    ]);
-                }
-            }
+            $this->logger->info('Order transmitted to Quest successfully', [
+                'order_id' => $event->getOrderId()
+            ]);
         }
 
         /**
@@ -317,20 +292,101 @@
         }
 
         /**
-         * Downloads the requisition PDF form to the user's desktop
+         * Fetches requisition document and downloads to desktop
          *
-         * Initiates the download of the requisition PDF form that was generated
-         * during the lab order processing.
+         * This is called AFTER the order has been transmitted to Quest.
+         * It fetches the requisition document from Quest and stores it.
+         * Uses retry logic with exponential backoff as Quest needs time to process the order.
          *
+         * @param QuestLabTransmitEvent $event The lab transmit event containing order data
          * @return void
          */
-        public function downloadPdfToDesktop(): void
+        public function downloadPdfToDesktop(QuestLabTransmitEvent $event): void
         {
-            $sendDownload = new DownloadRequisition();
-            if (!empty($this->requisitionFormName)) {
-                error_log('File name ' . $this->requisitionFormName);
-                $sendDownload->downloadLabPdfRequisition($this->requisitionFormName);
+            // Only fetch requisition if enabled in globals
+            if (!$GLOBALS['oe_quest_download_requisition']) {
+                return;
             }
+
+            $order = $event->getOrder();
+            $maxRetries = 3;
+            $retryDelay = 2; // Initial delay in seconds
+            $lastException = null;
+            
+            for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+                try {
+                    // Give Quest time to process the order before requesting requisition
+                    // Quest needs time to receive and process the HL7 order before it can generate the requisition
+                    if ($attempt > 1) {
+                        $this->logger->info('Retrying requisition fetch', [
+                            'attempt' => $attempt,
+                            'delay' => $retryDelay,
+                            'order_id' => $event->getOrderId()
+                        ]);
+                    } else {
+                        $this->logger->info('Requesting requisition document from Quest', [
+                            'order_id' => $event->getOrderId()
+                        ]);
+                    }
+                    
+                    sleep($retryDelay);
+                    
+                    $pdf = new ProcessRequisitionDocument($order);
+                    $result = $pdf->sendRequest();
+
+                    // Store the filename for desktop download and database storage
+                    if (is_array($result)) {
+                        $this->requisitionFormName = $result['filename'];
+                        
+                        // Store document in database if order ID is available
+                        if ($event->getOrderId()) {
+                            $this->storeRequisitionDocument(
+                                $result,
+                                $event->getOrderId(),
+                                $event->getPatientId()
+                            );
+                        }
+                        
+                        // Download to user's desktop
+                        $sendDownload = new DownloadRequisition();
+                        if (!empty($this->requisitionFormName)) {
+                            $this->logger->info('Downloading requisition to desktop', [
+                                'filename' => $this->requisitionFormName,
+                                'attempt' => $attempt
+                            ]);
+                            $sendDownload->downloadLabPdfRequisition($this->requisitionFormName);
+                        }
+                        
+                        // Success - break out of retry loop
+                        return;
+                    } else {
+                        $this->logger->warning('Requisition request returned non-array result', [
+                            'attempt' => $attempt
+                        ]);
+                        throw new \Exception('Invalid requisition response format');
+                    }
+                } catch (\Exception $e) {
+                    $lastException = $e;
+                    $this->logger->warning('Requisition fetch attempt failed', [
+                        'attempt' => $attempt,
+                        'max_retries' => $maxRetries,
+                        'error' => $e->getMessage(),
+                        'order_id' => $event->getOrderId()
+                    ]);
+                    
+                    // If this is not the last attempt, increase delay for next retry (exponential backoff)
+                    if ($attempt < $maxRetries) {
+                        $retryDelay = $retryDelay * 2; // Double the delay for next attempt
+                    }
+                }
+            }
+            
+            // All retries failed
+            $this->logger->error('Failed to fetch requisition after all retries', [
+                'attempts' => $maxRetries,
+                'last_error' => $lastException ? $lastException->getMessage() : 'Unknown error',
+                'order_id' => $event->getOrderId()
+            ]);
         }
 
         /**
