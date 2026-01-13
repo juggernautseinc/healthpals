@@ -14,13 +14,6 @@ require_once(__DIR__ . '/interface/globals.php');
 use OpenEMR\Common\Crypto\CryptoGen;
 
 $directory = 'sites/default/documents/temp';
-//$encrypted_contents = 'sites/default/documents/procedure_results/1-98765432/quest_results_2026-01-08 18:20:35_1.hl7';
-
-//$whatsinthere = file_get_contents($encrypted_contents);
-
-//var_dump($whatsinthere);
-
-echo $directory . PHP_EOL;
 
 $iterator = new DirectoryIterator($directory);
 
@@ -28,7 +21,7 @@ $iterator = new DirectoryIterator($directory);
     echo "Show contents: " . PHP_EOL;
     foreach ($iterator as $fileinfo) {
         if ($fileinfo->isFile()) {
-            echo $fileinfo->getFilename() . PHP_EOL;
+            echo $fileinfo->getFilename() . "<br>";
         }
     }
 
