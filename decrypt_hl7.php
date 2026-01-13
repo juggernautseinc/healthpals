@@ -26,7 +26,7 @@ $iterator = new DirectoryIterator($directory);
             continue;
         }
         if ($fileinfo->isFile()) {
-            echo "<a href=''" . $fileinfo->getFilename() . "</a><br>";
+            echo "<a href=''>" . $fileinfo->getFilename() . "</a><br>";
         }
     }
 
