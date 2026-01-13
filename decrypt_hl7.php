@@ -17,13 +17,13 @@ $directory = '/var/www/vhosts/healthpals.co/emr.healthpals.co/openemr-7.0.3/site
 
 echo $directory . PHP_EOL;
 
-if (is_dir($directory)) {
-    echo "Show contents: " . PHP_EOL;
-    foreach (scandir($directory) as $file) {
-        $fullPath = $directory . DIRECTORY_SEPARATOR . $file;
+$iterator = new DirectoryIterator($directory);
 
-        if (is_file($fullPath)) {
-            echo $file . PHP_EOL;
+
+    echo "Show contents: " . PHP_EOL;
+    foreach ($iterator as $fileinfo) {
+        if ($fileinfo->isFile()) {
+            echo $fileinfo->getFilename() . PHP_EOL;
         }
     }
-}
+
