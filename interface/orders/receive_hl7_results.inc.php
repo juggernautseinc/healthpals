@@ -1008,8 +1008,15 @@ function receive_hl7_results(&$hl7, &$matchreq, $lab_id = 0, $direction = 'B', $
             $context = $a[0];
             $arep = array();
             if ($direction != 'R' && $a[2]) {
-                $in_orderid = explode('-', $a[2]);
-                $in_orderid = intval($in_orderid[1]);
+                // Parse order ID - handle both formats: "FACILITY-ORDERID" or just "ORDERID"
+                $parts = explode('-', $a[2]);
+                if (count($parts) > 1) {
+                    // Format: FACILITY-ORDERID (e.g., "STL-17")
+                    $in_orderid = intval($parts[1]);
+                } else {
+                    // Format: just ORDERID (e.g., "36B185" or "17")
+                    $in_orderid = intval($parts[0]);
+                }
                 $porow = false;
                 $pcrow = false;
             }

@@ -461,7 +461,7 @@ function gen_hl7_order($orderid, &$out)
             "a.question_code,
             a.answer,
             q.fldtype,
-            q.options,
+            q.question_text,
             q.seq " .
             "FROM
             procedure_answers AS a " .
@@ -496,7 +496,7 @@ function gen_hl7_order($orderid, &$out)
             $out .= "OBX" .
                 $d1 . ++$setid2 .                           // Set ID
                 $d1 . $datatype .                           // Structure of observation value
-                $d1 . "^^^" . hl7Text($qrow['seq']) . "^" . hl7Text($qrow['options']) .     // Clinical question code Quest requires options
+                $d1 . "^^^" . hl7Text($qrow['question_code']) . "^" . hl7Text($qrow['question_text']) .     // Clinical question code and description
                 $d1 .
                 $d1 . hl7Text($answer) .                    // Clinical question answer
                 $d1 . $d0;
