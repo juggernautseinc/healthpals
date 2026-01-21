@@ -85,7 +85,7 @@ function hl7Phone($s)
 {
     // Strip all non-numeric characters from phone number
     $phone = preg_replace('/[^0-9]/', '', $s);
-    
+
     // Return the numeric-only phone number
     return $phone;
 }
@@ -412,7 +412,7 @@ function gen_hl7_order($orderid, &$out)
         if (!empty($porow['patient_instructions'])) {
             $out .= "NTE" .
                 $d1 . ++$nte_setid .
-                $d1 . "L" .
+                $d1 . "I" .
                 $d1 . hl7Text($porow['patient_instructions']) .
                 $d0;
         }
@@ -420,7 +420,7 @@ function gen_hl7_order($orderid, &$out)
         if (!empty($porow['clinical_hx'])) {
             $out .= "NTE" .
                 $d1 . ++$nte_setid .
-                $d1 . "L" .
+                $d1 . "I" .
                 $d1 . hl7Text($porow['clinical_hx']) .
                 $d0;
         }
