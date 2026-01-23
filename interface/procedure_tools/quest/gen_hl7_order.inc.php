@@ -122,6 +122,31 @@ function hl7Relation($s)
 }
 
 /**
+ * Convert order_abn field to HL7 ORC.20 ABN status code.
+ *
+ * @param string $order_abn The order_abn value from procedure_order table.
+ * @return string HL7 ABN status code for ORC.20 field.
+ */
+function hl7AbnStatus($order_abn)
+{
+    $abn_status = trim(strtolower($order_abn));
+    
+    // Map order_abn values to HL7 ORC.20 codes
+    // Per Quest documentation:
+    // 2 = Notified & Signed (ABN signed by patient)
+    // 4 = Unsigned (ABN required but not signed)
+    // Empty or 0 = Not required
+    if ($abn_status === 'signed') {
+        return '2';
+    } elseif ($abn_status === 'required') {
+        return '4';
+    } else {
+        // 'not_required' or any other value
+        return '';
+    }
+}
+
+/**
  * Get array of insurance payers for the specified patient as of the specified
  * date. If no date is passed then the current date is used.
  *
@@ -184,7 +209,8 @@ function gen_hl7_order($orderid, &$out)
         "pp.*, " .
         "pd.pid, pd.pubpid, pd.fname, pd.lname, pd.mname, pd.DOB, pd.ss, " .
         "pd.phone_home, pd.phone_biz, pd.sex, pd.street, pd.city, pd.state, pd.postal_code, " .
-        "f.encounter, u.fname AS docfname, u.lname AS doclname, u.npi AS docnpi " .
+        "f.encounter, u.fname AS docfname, u.lname AS doclname, u.npi AS docnpi, " .
+        "po.order_abn, po.billing_type " .
         "FROM procedure_order AS po, procedure_providers AS pp, " .
         "forms AS f, patient_data AS pd, users AS u " .
         "WHERE " .
@@ -384,7 +410,7 @@ function gen_hl7_order($orderid, &$out)
             $d2 . hl7Text($porow['doclname']) . // Last Name
             $d2 . hl7Text($porow['docfname']) . '^^^^^^NPI' . // First Name
             str_repeat($d1, 7) .             // ORC 13-19 not used
-            $d1 . "2" .                      // ABN Status: 2 = Notified & Signed, 4 = Unsigned
+            $d1 . hl7AbnStatus($porow['order_abn']) .  // ABN Status: Dynamic based on order_abn field
             $d0;
 
         // Observation Request.

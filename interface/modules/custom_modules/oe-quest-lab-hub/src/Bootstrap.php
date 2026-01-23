@@ -200,7 +200,8 @@
          */
         public function sendOrderToQuestLab(QuestLabTransmitEvent $event): void
         {
-            $order = $event->getOrder(); // get the order from the event
+            $order = $event->getOrder(); // get the order HL7 from the event
+            $orderId = $event->getOrderId(); // get the order ID from the event
             $requisitionOrder = $order;
             $result = new ProcessLabOrder($order); // create a new process lab order We might want to return errors here
             //This logging is for debugging purposes
@@ -210,7 +211,8 @@
 
             //call to get the requisition document from QuestLab
             if ($GLOBALS['oe_quest_download_requisition']) { // the requisition form is optional and can be turned off
-                $pdf = new ProcessRequisitionDocument($requisitionOrder);
+                // Pass both HL7 and order ID for conditional document requests
+                $pdf = new ProcessRequisitionDocument($requisitionOrder, $orderId);
                 error_log('Requisition form downloaded');
                 $this->requisitionFormName = $pdf->sendRequest(); //send request for requisition
                 error_log("order sent to be transmitted");

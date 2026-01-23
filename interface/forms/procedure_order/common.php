@@ -386,9 +386,8 @@ if (($_POST['bn_save'] ?? null) || !empty($_POST['bn_xmit']) || !empty($_POST['b
         if ($diag_flag === 0) {
             $order_data .= "\n" . xlt("At least one diagnosis is required! Please add a diagnosis for this order.");
         }
-        if ($_POST['form_order_abn'] === 'required') {
-            $order_data .= "\n" . xlt("ABN is required but not signed!");
-        }
+        // ABN validation removed - Quest will generate ABN documents if required
+        // The combined ABN-REQ workflow will return both documents for patient signature
         if (!$_POST['form_date_collected'] && !$_POST['form_order_psc']) {
             $order_data .= "\n" . xlt("Specimen Collections date has not been entered and this is not a PSC Hold Order!");
         }
@@ -438,8 +437,9 @@ if (($_POST['bn_save'] ?? null) || !empty($_POST['bn_xmit']) || !empty($_POST['b
                         ":\n" . $hl7 . "\n";
                     if ($gbl_lab === 'quest') {
                         $order_log .= xlt("Transmitting order to Quest");
-                        $ed->dispatch(new QuestLabTransmitEvent($hl7), QuestLabTransmitEvent::EVENT_LAB_TRANSMIT, 10);
-                        $ed->dispatch(new QuestLabTransmitEvent($pid), QuestLabTransmitEvent::EVENT_LAB_POST_ORDER_LOAD, 10);
+                        // Pass both HL7 and order ID for proper document request handling
+                        $ed->dispatch(new QuestLabTransmitEvent($hl7, $formid), QuestLabTransmitEvent::EVENT_LAB_TRANSMIT, 10);
+                        $ed->dispatch(new QuestLabTransmitEvent($pid, $formid), QuestLabTransmitEvent::EVENT_LAB_POST_ORDER_LOAD, 10);
                     }
 
                     if ($_POST['form_order_psc']) {
