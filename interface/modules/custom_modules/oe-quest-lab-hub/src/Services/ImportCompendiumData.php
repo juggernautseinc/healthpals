@@ -29,9 +29,7 @@ class ImportCompendiumData
     private string $tempDir;
     private const QUEST_PROVIDER_ID = 1;
     private const DELIMITER = '^';
-    private const FIELD_DELIMITER = '|';
-    private const ORDCODE_FILENAME = 'ORDCODE_STL.TXT';
-    private const AOE_FILENAME = 'AOE_STL.TXT';
+
 
     /**
      * Constructor
@@ -45,24 +43,26 @@ class ImportCompendiumData
         $this->tempDir = $GLOBALS['OE_SITE_DIR'] . '/documents/temp/';
 
         try {
-            // Import order codes from ORDCODE_STL.TXT
-            $ordcodePath = $this->tempDir . self::ORDCODE_FILENAME;
+            // Import order codes from ORDCODE_.TXT
+            $ordcodePath = $this->tempDir . self::buildOrdcodeFileName();
             if (file_exists($ordcodePath)) {
                 $this->compendiumData = file_get_contents($ordcodePath);
                 $this->importOrderCodes();
                 unlink($ordcodePath);
             } else {
-                $this->logger->error('ORDCODE_STL.TXT not found', ['path' => $ordcodePath]);
+                $this->logger->error('ORDCODE_.TXT not found', ['path' => $ordcodePath]);
+                throw new QuestFileSystemException('ORDCODE_.TXT not found');
             }
 
-            // Import questions from AOE_STL.TXT
-            $aoePath = $this->tempDir . self::AOE_FILENAME;
+            // Import questions from AOE_.TXT
+            $aoePath = $this->tempDir . self::buildAoeFileName();
             if (file_exists($aoePath)) {
                 $this->compendiumAoeData = file_get_contents($aoePath);
                 $this->importAoeData();
                 unlink($aoePath);
             } else {
-                $this->logger->error('AOE_STL.TXT not found', ['path' => $aoePath]);
+                $this->logger->error('AOE_.TXT not found', ['path' => $aoePath]);
+                throw new QuestFileSystemException('AOE_.TXT not found');
             }
 
             $this->logger->info('Compendium import completed successfully');
@@ -73,6 +73,24 @@ class ImportCompendiumData
             $this->logger->error('Unexpected error during compendium import', ['error' => $e->getMessage()]);
             throw $e;
         }
+    }
+
+    private function buildOrdcodeFileName(): string
+    {
+        $receiverId = $this->pullReceiverId();
+        return "ORDCODE_" . $receiverId . ".TXT";
+    }
+
+    private function buildAoeFileName(): string
+    {
+        $receiverId = $this->pullReceiverId();
+        return "AOE_" . $receiverId . ".TXT";
+    }
+
+    private function pullReceiverId(): string
+    {
+        $receiverId = sqlQuery("SELECT recv_fac_id FROM procedure_providers WHERE name = 'Quest'");
+        return $receiverId['recv_fac_id'];
     }
 
     /**

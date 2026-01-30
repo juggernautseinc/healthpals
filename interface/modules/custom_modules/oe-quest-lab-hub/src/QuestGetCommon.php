@@ -51,8 +51,8 @@ class QuestGetCommon
             $mode = $token->operationMode();
 
             if (empty($mode) || empty($resourceLocation) || empty($accessToken)) {
-                $errorMessage = "Missing required parameters. Mode: " . (!empty($mode) ? 'OK' : 'EMPTY') . 
-                    ", Location: " . (!empty($resourceLocation) ? 'OK' : 'EMPTY') . 
+                $errorMessage = "Missing required parameters. Mode: " . (!empty($mode) ? 'OK' : 'EMPTY') .
+                    ", Location: " . (!empty($resourceLocation) ? 'OK' : 'EMPTY') .
                     ", Token: " . (!empty($accessToken) ? 'OK' : 'EMPTY');
                 error_log("Quest Lab Order - Config Error: " . $errorMessage);
                 return "Error: " . $errorMessage;
@@ -139,7 +139,6 @@ class QuestGetCommon
     private function unzipCdcFile($fileName): bool
     {
         #unpack file into the temp directory for import to database
-        //$tmpDir = dirname(__DIR__, 5) . '/sites/' . $_SESSION['site_id'] . '/documents/temp/';
         $zip = new ZipArchive;
         $res = $zip->open($this->tmpDir . $fileName);
         if ($res === TRUE) {
