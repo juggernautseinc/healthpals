@@ -27,7 +27,6 @@ class ImportCompendiumData
     private ?string $compendiumAoeData = null;
     private SystemLogger $logger;
     private string $tempDir;
-    private const QUEST_PROVIDER_ID = 1;
     private const DELIMITER = '^';
 
 
@@ -41,6 +40,7 @@ class ImportCompendiumData
     {
         $this->logger = new SystemLogger();
         $this->tempDir = $GLOBALS['OE_SITE_DIR'] . '/documents/temp/';
+        $this->questLabProviderId = $this->getQuestProviderId();
 
         try {
             // Import order codes from ORDCODE_.TXT
@@ -73,6 +73,12 @@ class ImportCompendiumData
             $this->logger->error('Unexpected error during compendium import', ['error' => $e->getMessage()]);
             throw $e;
         }
+    }
+
+    private function getQuestProviderId(): int
+    {
+        $questLabProviderId = sqlQuery("SELECT id FROM procedure_providers WHERE name = 'Quest'");
+        return $questLabProviderId['id'];
     }
 
     private function buildOrdcodeFileName(): string
@@ -235,7 +241,7 @@ class ImportCompendiumData
                 [
                     $parentId,           // parent
                     $testName,           // name
-                    self::QUEST_PROVIDER_ID, // lab_id
+                    $this->questLabProviderId, // lab_id
                     $procedureCode,      // procedure_code
                     'ord',               // procedure_type (order)
                     '',                  // body_site
@@ -284,7 +290,7 @@ class ImportCompendiumData
             QueryUtils::sqlInsert(
                 $sql,
                 [
-                    self::QUEST_PROVIDER_ID, // lab_id
+                    $this->questLabProviderId, // lab_id
                     $procedureCode,      // procedure_code
                     $questionCode,       // question_code
                     0,                   // seq (can be enhanced)
@@ -334,7 +340,7 @@ class ImportCompendiumData
                 [
                     0,                   // parent
                     'Quest Clinical Dataset', // name
-                    self::QUEST_PROVIDER_ID,  // lab_id
+                    $this->questLabProviderId,  // lab_id
                     '',                  // procedure_code
                     'grp',               // procedure_type (group)
                     '',                  // body_site
