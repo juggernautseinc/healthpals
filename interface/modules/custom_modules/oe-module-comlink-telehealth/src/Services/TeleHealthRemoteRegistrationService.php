@@ -77,6 +77,16 @@ class TeleHealthRemoteRegistrationService
      */
     private $logger;
 
+    /**
+     * @var TeleHealthUserRepository
+     */
+    private $userRepository;
+
+    /**
+     * @var TeleHealthProviderRepository
+     */
+    private $providerRepository;
+
     public function __construct(TelehealthGlobalConfig $config, TelehealthRegistrationCodeService $codeService)
     {
         $this->apiURL = $config->getRegistrationAPIURI();
@@ -161,6 +171,15 @@ class TeleHealthRemoteRegistrationService
     }
 
     /**
+     * Allows the provider repository to be set for testing or extension purposes
+     * @param TeleHealthProviderRepository $providerRepository
+     */
+    public function setTelehealthProviderRepository(TeleHealthProviderRepository $providerRepository)
+    {
+        $this->providerRepository = $providerRepository;
+    }
+
+    /**
      * Returns if a registration should be created for the given provider id.  This does not answer whether a registration
      * exists, but whether the user passes the criteria for creating a registration record regardless of whether it exists or not.
      * @param $providerId
@@ -168,6 +187,9 @@ class TeleHealthRemoteRegistrationService
      */
     public function shouldCreateRegistrationForProvider($providerId)
     {
+        if (empty($this->providerRepository)) {
+            throw new \RuntimeException("Provider repository must be set via setTelehealthProviderRepository before calling shouldCreateRegistrationForProvider");
+        }
         return $this->providerRepository->isEnabledProvider($providerId);
     }
 
