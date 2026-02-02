@@ -48,6 +48,11 @@ class TeleHealthCalendarController
     private $apptService;
 
     /**
+     * @var TeleHealthProviderRepository
+     */
+    private $teleHealthProviderRepository;
+
+    /**
      * @var Environment Twig container
      */
     private $twig;
